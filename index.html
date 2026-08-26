@@ -4774,20 +4774,25 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.__rcFilterStatus = 'all';
 
   window.switchPage = function(page){
-    document.getElementById('salesPage').style.display = (page==='sales') ? '' : 'none';
-    document.getElementById('livePage').style.display = (page==='live') ? '' : 'none';
-    document.getElementById('realtimePage').style.display = (page==='realtime') ? '' : 'none';
-    document.getElementById('contractPage').style.display = (page==='contract') ? '' : 'none';
-    document.getElementById('marketingPage').style.display = (page==='marketing') ? '' : 'none';
-    document.getElementById('royaltyPage').style.display = (page==='royalty') ? '' : 'none';
-    document.getElementById('officePage').style.display = (page==='office') ? '' : 'none';
-    document.getElementById('pageTab-sales').classList.toggle('active', page==='sales');
-    document.getElementById('pageTab-live').classList.toggle('active', page==='live');
-    document.getElementById('pageTab-realtime').classList.toggle('active', page==='realtime');
-    document.getElementById('pageTab-contract').classList.toggle('active', page==='contract');
-    document.getElementById('pageTab-marketing').classList.toggle('active', page==='marketing');
-    document.getElementById('pageTab-royalty').classList.toggle('active', page==='royalty');
-    document.getElementById('pageTab-office').classList.toggle('active', page==='office');
+    // 안전장치: id가 실제로 없는 요소를 건드려도(예: 나중에 탭을 지우거나 이름을 바꿨을 때)
+    // 여기서 예외가 나서 switchPage 전체가 멈추지 않도록 null 체크 후 진행한다.
+    const setDisplay = (id, show) => { const el = document.getElementById(id); if(el) el.style.display = show ? '' : 'none'; };
+    const setActive = (id, active) => { const el = document.getElementById(id); if(el) el.classList.toggle('active', active); };
+
+    setDisplay('salesPage', page==='sales');
+    setDisplay('livePage', page==='live');
+    setDisplay('realtimePage', page==='realtime');
+    setDisplay('contractPage', page==='contract');
+    setDisplay('marketingPage', page==='marketing');
+    setDisplay('royaltyPage', page==='royalty');
+    setDisplay('officePage', page==='office');
+    setActive('pageTab-sales', page==='sales');
+    setActive('pageTab-live', page==='live');
+    setActive('pageTab-realtime', page==='realtime');
+    setActive('pageTab-contract', page==='contract');
+    setActive('pageTab-marketing', page==='marketing');
+    setActive('pageTab-royalty', page==='royalty');
+    setActive('pageTab-office', page==='office');
     document.getElementById('brandTitle').textContent = (page==='sales') ? '복호두 매출 현황판' : (page==='live') ? '복호두 LIVE 매출' : (page==='realtime') ? '복호두 실시간 매출' : (page==='contract') ? '복호두 재계약 안내' : (page==='marketing') ? '복호두 마케팅 참여현황' : (page==='royalty') ? '복호두 로열티 미입금 관리' : '복호두 담당자 AI 오피스';
     if(page==='contract'){ renderContractKpis(); renderContractTable(); }
     if(page==='marketing'){ renderMarketingKpis(); renderMarketingRegionChips(); renderMarketingTable(); }
