@@ -16,14 +16,14 @@ async function main() {
   const end = kstDateString(0);
   const start = kstDateString(-testDays);
 
-  const payload = {
-    REQ_CODE: '4',
-    FRANCHISE_CODE,
-    BRAND_CODE,
-    SHOP_NO: code,
-    SALE_START_DATE: start,
-    SALE_END_DATE: end,
-  };
+const payload = {
+  REQ_CODE: '3',
+  FRANCHISE_CODE,
+  BRAND_CODE,
+  SHOP_NO: code,     // BHD053
+  SALE_START_DATE: '20260820',
+  SALE_END_DATE: '20260826',
+};
 
   console.log('요청 payload:', JSON.stringify(payload, null, 2));
 
