@@ -202,6 +202,55 @@ function aggregateOrdersToDays(orders) {
   return Object.values(byDay);
 }
 
+// IFSA_TP 코드 -> 채널 한글명 매핑. 실측(2026-08-26, BHD053/8월19~26일)으로 'OKB'
+// 코드가 배달 주문(SA_TP='D')에 붙는 것을 확인했으나, 이게 정확히 어느 배달앱인지
+// 및 배민/배민1/요기요/땡겨요에 해당하는 다른 코드값은 아직 표본에 없어 미확인.
+// TODO: tpay 담당자에게 IFSA_TP 코드-이름 전체 매핑표(COMMON_CD, CCG_CD='IFSA_TP')를
+// 요청해서 채워 넣을 것. 모르는 코드는 원본 코드값을 그대로 노출하므로 화면에서
+// "OKB" 같은 코드가 보이면 아직 매핑이 안 된 것.
+const CHANNEL_NAME_MAP = {
+  // 'OKB': '쿠팡이츠',   // 확인 후 주석 해제
+  // 'MTC': '배달의민족',
+  // 'FDT': '요기요',
+};
+
+function channelName_(code) {
+  if (!code) return '포스';
+  return CHANNEL_NAME_MAP[code] || code; // 모르는 코드는 원본 코드 그대로 표시
+}
+
+/**
+ * 매출정보 마스터(REQ_CODE 3) 주문 건별 원본을 SDA_DT(영업일) + IFSA_TP(채널) 기준으로
+ * 이중 그룹핑해서, 일자별 채널별 매출 내역을 반환한다.
+ * IFSA_TP가 비어있으면 '포스'(매장/포장 등 자체 주문)로 분류한다.
+ * 취소(SA_DEL_MK==='D') 건은 매출 합계·건수에서 제외하고 cxlCnt로만 집계한다
+ * (daily-update.js의 trimOrder_와 달리 여기서는 취소분을 정상 매출에 포함하지 않음).
+ *
+ * 반환 형태: { [SDA_DT]: { [channelName]: { amount, cnt, cxlCnt, code } } }
+ * - amount: 해당 채널의 순매출 합계 (SA_GET_AMT 기준)
+ * - cnt: 정상 주문 건수 ("배달횟수"로 쓸 수 있음)
+ * - cxlCnt: 취소 건수
+ * - code: 원본 IFSA_TP 코드 (매핑 안 된 채널명을 나중에 역추적할 때 참고용)
+ */
+function aggregateOrdersToChannelDays(orders) {
+  const byDay = {};
+  for (const o of orders) {
+    const day = o.SDA_DT;
+    const code = o.IFSA_TP || '';
+    const name = channelName_(code);
+    if (!byDay[day]) byDay[day] = {};
+    if (!byDay[day][name]) byDay[day][name] = { amount: 0, cnt: 0, cxlCnt: 0, code };
+
+    if (o.SA_DEL_MK === 'D') {
+      byDay[day][name].cxlCnt += 1;
+    } else {
+      byDay[day][name].amount += Number(o.SA_GET_AMT || 0);
+      byDay[day][name].cnt += 1;
+    }
+  }
+  return byDay;
+}
+
 /**
  * 매출정보 마스터(REQ_CODE 3)로 단일 날짜를 조회해서 합산한 실시간 매출을 반환.
  * "오늘"처럼 아직 정산(REQ_CODE 4)이 안 끝난 날짜의 실시간 값을 보려 할 때 사용.
@@ -555,6 +604,7 @@ module.exports = {
   fetchOneStoreRange,
   fetchOneStoreRealtime,
   fetchOneStoreRealtimeWithOrders,
+  aggregateOrdersToChannelDays,
   fetchOneStoreProducts,
   fetchOneStoreProductsRange,
   fetchOneStoreOrderDetail,
