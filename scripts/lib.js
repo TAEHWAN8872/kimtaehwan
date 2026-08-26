@@ -508,13 +508,24 @@ async function fetchOneStoreProductsRange(token, code, start, end, chunkDays = M
  * ⚠️ 미검증: OPTION_GBN 필드가 REQ_CODE 6 응답에 실제로 존재하는지, 'S' 값이
  * 세트구성품을 정확히 가리키는지는 별도 검증이 필요하다. 확인 전이라면
  * 이 필터를 끄고(FILTER_SET_COMPONENTS = false) 원본 그대로 집계하도록 되돌릴 것.
+ *
+ * [2026-08-26 추가 2] SC_FORM === 'D'(취소) / 'C'(반품) 행도 집계에서 제외한다.
+ * 실측 확인(BHD136/2026-08-26): 주문 전체가 취소된 건(SA_DEL_MK='D',
+ * SA_GET_AMT=0)의 라인이 SC_FORM='D'로 찍히는데, 이때 SC_AMT_TTL은 0으로
+ * 내려오지만 SC_QTY는 취소 전 수량이 그대로 남아있어서, 필터링 없이 합산하면
+ * "수량은 있는데 금액은 0"인 항목이 생긴다. OPTION_GBN='S' 필터와는 별개 원인이다.
+ * 'C'(반품)는 실측 샘플이 아직 없어 추정으로 같이 제외한다 — 반품 라인의 실제
+ * SC_QTY/SC_AMT_TTL 부호나 값이 확인되면 이 부분을 재검증할 것.
  */
 const FILTER_SET_COMPONENTS = true;
+const FILTER_CANCELLED = true;
+const CANCELLED_SC_FORMS = ['D', 'C'];
 
 function aggregateOrderDetailToProducts(rows) {
   const byKey = {};
   for (const r of rows) {
     if (FILTER_SET_COMPONENTS && r.OPTION_GBN === 'S') continue; // 세트구성품 제외
+    if (FILTER_CANCELLED && CANCELLED_SC_FORMS.includes(r.SC_FORM)) continue; // 취소/반품 제외
     const key = r.SDA_DT + '|' + r.CMDT_NM;
     if (!byKey[key]) byKey[key] = { SDA_DT: r.SDA_DT, CMDT_NM: r.CMDT_NM, SDC_QTY: 0, SDC_AMT_TTL: 0 };
     byKey[key].SDC_QTY += Number(r.SC_QTY || 0);
