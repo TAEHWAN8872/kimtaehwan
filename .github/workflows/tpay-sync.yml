@@ -73,7 +73,14 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: tpay-sync-${{ github.event.inputs.mode || 'daily' }}
+  # [2026-08-26 변경] 기존에는 mode별로 그룹이 나뉘어 있어(tpay-sync-daily,
+  # tpay-sync-product-backfill 등) daily 스케줄과 수동 backfill류가 동시에 실행될 수
+  # 있었다. product-backfill.js는 data/product-daily.json을 부분 병합이 아니라
+  # 통째로 덮어쓰기 때문에, 실행 도중(수십분~몇 시간) product-daily-update.js가
+  # 10분마다 반영한 "오늘자" 갱신분이 backfill 종료 시점에 통째로 사라질 위험이 있었다.
+  # 그룹을 mode 구분 없이 하나로 묶어서 daily/backfill/patch 등 모든 실행이 겹치지
+  # 않고 순서대로만 돌도록 한다(cancel-in-progress: false라서 취소가 아니라 대기).
+  group: tpay-sync
   cancel-in-progress: false
 jobs:
   sync:
