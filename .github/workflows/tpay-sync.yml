@@ -21,6 +21,7 @@ on:
           - debug-order
           - compare
           - product-compare
+          - debug-channel-fields
       rolling_days:
         description: 'backfill 모드일 때 조회할 일수'
         required: false
@@ -156,8 +157,15 @@ jobs:
           DEBUG_SHOP_NO: ${{ github.event.inputs.debug_shop_no }}
           DEBUG_DATE: ${{ github.event.inputs.debug_date }}
         run: node scripts/product-realtime-compare.js
+      - name: 채널 필드 진단 실행 (수동-debug-channel-fields, 배민/쿠팡이츠 등 채널명 필드 탐색용)
+        if: github.event.inputs.mode == 'debug-channel-fields'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          DEBUG_SHOP_NO: ${{ github.event.inputs.debug_shop_no }}
+          DEBUG_DATE: ${{ github.event.inputs.debug_date }}
+        run: node scripts/debug-channel-fields.js
       - name: 변경사항 커밋 & 푸시
-        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare'
+        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare' && github.event.inputs.mode != 'debug-channel-fields'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
