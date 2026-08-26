@@ -236,8 +236,10 @@ function aggregateOrdersToChannelDays(orders) {
   const byDay = {};
   for (const o of orders) {
     const day = o.SDA_DT;
-    const code = o.IFSA_TP || '';
-    const name = channelName_(code);
+   const code = o.IFSA_TP || '';
+// 2026-08-26 벤더(오케이포스) 수정 반영: IFSA_TP_NM이 이제 배민/배민1/쿠팡이츠 등
+// 실제 채널명을 정확히 준다. 코드(IFSA_TP)가 아니라 이 값을 채널명으로 써야 한다.
+const name = !code ? '포스' : (o.IFSA_TP_NM || channelName_(code));
     if (!byDay[day]) byDay[day] = {};
     if (!byDay[day][name]) byDay[day][name] = { amount: 0, cnt: 0, cxlCnt: 0, code };
 
