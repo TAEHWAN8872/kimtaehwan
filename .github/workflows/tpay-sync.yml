@@ -15,6 +15,7 @@ on:
           - backfill
           - patch
           - product-backfill
+          - channel-backfill
           - product-category
           - debug
           - debug-order
@@ -38,6 +39,18 @@ on:
         default: ''
       patch_end:
         description: 'patch 모드일 때 종료일 (yyyymmdd)'
+        required: false
+        default: ''
+      channel_backfill_shop_no:
+        description: 'channel-backfill 모드일 때 대상 매장코드 (예: BHD055)'
+        required: false
+        default: ''
+      channel_backfill_start:
+        description: 'channel-backfill 모드일 때 시작일 (yyyymmdd)'
+        required: false
+        default: ''
+      channel_backfill_end:
+        description: 'channel-backfill 모드일 때 종료일 (yyyymmdd)'
         required: false
         default: ''
       debug_shop_no:
@@ -98,6 +111,14 @@ jobs:
           TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
           PRODUCT_ROLLING_DAYS: ${{ github.event.inputs.product_rolling_days }}
         run: node scripts/product-backfill.js
+      - name: 채널별 매출 백필 실행 (수동-channel-backfill)
+        if: github.event.inputs.mode == 'channel-backfill'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          BACKFILL_SHOP_NO: ${{ github.event.inputs.channel_backfill_shop_no }}
+          BACKFILL_START: ${{ github.event.inputs.channel_backfill_start }}
+          BACKFILL_END: ${{ github.event.inputs.channel_backfill_end }}
+        run: node scripts/backfill-channel-sales.js
       - name: 특정 매장·구간 패치 실행 (수동-patch, 기존 데이터는 유지하고 지정 구간만 재조회+병합)
         if: github.event.inputs.mode == 'patch'
         env:
