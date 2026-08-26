@@ -686,6 +686,11 @@ body.hide-names .store-name:hover{
           <label>종료일</label>
           <input id="liveSmEndDate" type="date" class="live-input">
         </span>
+        <label>보기</label>
+        <select id="liveSmViewMode" class="live-input" onchange="window.switchLiveSmViewMode()">
+          <option value="summary">정리보기</option>
+          <option value="channel">채널별 상세 (배달만)</option>
+        </select>
         <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveSummaryExcel()">⬇️ 엑셀 다운로드</button>
         <input id="liveSmSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveSummaryTable()"
@@ -5059,6 +5064,19 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     return d.toLocaleTimeString('ko-KR');
   }
 
+  // 채널별 매출(channelDays)도 기간에 맞춰 필터링.
+  // daily-update.js/backfill-channel-sales.js가 stores[code].channelDays =
+  //   { 'yyyymmdd': { '포스': {amount,cnt,cxlCnt,code}, 'OKB': {...}, ... } } 형태로 채워줌.
+  // 아직 채널 백필이 안 된 매장·기간은 channelDays 자체가 없거나 비어있을 수 있음 (정상 상태).
+  function filterChannelDays_(channelDays, start, end){
+    if(!channelDays) return {};
+    const out = {};
+    Object.entries(channelDays).forEach(([ymd, chMap]) => {
+      if(ymd >= start && ymd <= end) out[ymd] = chMap;
+    });
+    return out;
+  }
+
   // 두 서브탭이 공유하는 조회 함수: GitHub Actions가 갱신하는 정적 json에서 원본 데이터를 가져온다
   async function fetchLiveDaily_(start, end){
     const res = await fetch(`${LIVE_DATA_URL}?_=${Date.now()}`); // 쿼리스트링으로 캐시 우회
@@ -5068,7 +5086,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const stores = {};
     Object.entries(raw.STORES || {}).forEach(([code, s]) => {
       if(s.error){ stores[code] = s; return; }
-      stores[code] = { name: s.name, days: (s.days||[]).filter(d => d.SDA_DT >= start && d.SDA_DT <= end) };
+      stores[code] = {
+        name: s.name,
+        days: (s.days||[]).filter(d => d.SDA_DT >= start && d.SDA_DT <= end),
+        channelDays: filterChannelDays_(s.channelDays, start, end)
+      };
     });
 
     return { RESPONSE_CODE: '0000', START: start, END: end, STORES: stores, CACHED_AT: raw.updatedAt };
@@ -5275,13 +5297,46 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     downloadLiveTableExcel_('summary', '매출정리', '매출정리');
   };
 
-  // ── 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) ──
-  // live-daily.json의 일별 SA_AMT_TTL(총매출)·SA_ON_AMT(온라인/배달 매출) 필드를 기간 합산해서
-  // 포스 매출(= 총매출 - 배달매출) / 배달 매출 / 총매출을 매장별로 집계한다.
+  // ── 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 배달횟수 / 총매출 (월별 또는 기간별) ──
+  // "정리보기": live-daily.json의 일별 SA_AMT_TTL(총매출) 필드와 channelDays(채널별 매출·건수)를 기간 합산해서
+  //   포스 매출(= 총매출 - 배달매출) / 배달 매출 / 배달횟수 / 총매출을 매장별로 집계한다.
+  //   channelDays가 아직 백필 안 된 매장·기간은 예전 방식대로 SA_ON_AMT(온라인/배달 매출) 필드로 배달매출만
+  //   추정하고(교차검증 완료) 배달횟수는 0으로 둔다 (건수를 셀 근거 데이터가 없어서).
+  // "채널별 상세": channelDays에 찍힌 채널명(포스 제외)을 배민/배민1/쿠팡이츠/요기요/땡겨요 우선순서로
+  //   컬럼화해서 배달 매출만 보여준다(이 뷰의 "총매출"은 배달 채널 합계를 의미함, 매장 전체 매출이 아님).
+  //   아직 코드-채널명 매핑이 확정 안 된 채널(예: OKB)은 원본 코드 그대로 컬럼명에 노출되며,
+  //   CHANNEL_DISPLAY_MAP에 실제 매핑을 추가하면 바로 반영된다.
   // ※ SA_DEL_AMT는 2024년부터 계속 값이 잡혀있던 필드라 이번 배달 테스트와는 무관함(취소/차감 관련 추정).
   //   실제로 2026-08-20부터 광주수완점에서만 값이 잡히기 시작한 필드는 SA_ON_AMT였음(교차검증 완료).
-  // ※ 배달횟수, 배민/쿠팡이츠 등 채널별 구분은 현재 수집되는 데이터에 근거 필드가 없어 보류함.
   window.__liveSmData = null;
+
+  // 채널 코드 → 화면 표시명 매핑. 현재 확인된 코드는 '포스'(오프라인)/'OKB' 뿐이라 우선 비워둠.
+  // 실제 배민/배민1/쿠팡이츠/요기요/땡겨요 코드가 확인되면 여기에 추가하면 됨. 예: 'OKB': '쿠팡이츠'
+  const CHANNEL_DISPLAY_MAP = {};
+  const CHANNEL_PRIORITY_ORDER = ['배민', '배민1', '쿠팡이츠', '요기요', '땡겨요'];
+  function channelDisplayName_(code){ return CHANNEL_DISPLAY_MAP[code] || code; }
+
+  // 매장의 channelDays(날짜별 채널 맵)를 기간 전체로 합산 (포스 제외, 표시명 기준으로 합산)
+  function aggregateStoreChannels_(channelDays){
+    const out = {};
+    Object.values(channelDays || {}).forEach(dayMap => {
+      Object.entries(dayMap || {}).forEach(([code, v]) => {
+        if(code === '포스') return;
+        const label = channelDisplayName_(code);
+        if(!out[label]) out[label] = { amount: 0, cnt: 0 };
+        out[label].amount += v.amount || 0;
+        out[label].cnt += v.cnt || 0;
+      });
+    });
+    return out;
+  }
+  // 화면에 표시할 채널 컬럼 순서: 우선순위 채널 먼저(데이터에 있을 때만), 나머지는 가나다순
+  function orderedChannelLabels_(labelSet){
+    const present = [...labelSet];
+    const known = CHANNEL_PRIORITY_ORDER.filter(l => present.includes(l));
+    const rest = present.filter(l => !CHANNEL_PRIORITY_ORDER.includes(l)).sort((a, b) => a.localeCompare(b, 'ko'));
+    return [...known, ...rest];
+  }
 
   window.loadLiveSummary = async function(){
     const filterType = document.getElementById('liveSmFilterType').value;
@@ -5326,13 +5381,25 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
   };
 
+  // 보기 모드(정리보기/채널별 상세) 전환은 재조회 없이 캐시된 데이터로 다시 그리기만 하면 됨
+  window.switchLiveSmViewMode = function(){
+    window.renderLiveSummaryTable();
+  };
+
   window.__liveSmSortState = window.__liveSmSortState || { key: 'total', dir: -1 };
 
   function liveSmSortCompare_(a, b, key){
+    if(key && key.indexOf('ch:') === 0){
+      const label = key.slice(3);
+      const av = (a.channels && a.channels[label] && a.channels[label].amount) || 0;
+      const bv = (b.channels && b.channels[label] && b.channels[label].amount) || 0;
+      return av - bv;
+    }
     switch(key){
       case 'manager': return (a.manager||'').localeCompare(b.manager||'', 'ko');
       case 'pos': return (a.posAmt||0) - (b.posAmt||0);
       case 'del': return (a.delAmt||0) - (b.delAmt||0);
+      case 'delCnt': return (a.delCnt||0) - (b.delCnt||0);
       case 'total': return (a.totalAmt||0) - (b.totalAmt||0);
       case 'name': default: return (a.name||'').localeCompare(b.name||'', 'ko');
     }
@@ -5349,18 +5416,28 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const data = window.__liveSmData;
     if(!data){ wrap.innerHTML = ''; return; }
 
+    const viewMode = document.getElementById('liveSmViewMode') ? document.getElementById('liveSmViewMode').value : 'summary';
+
     let rows = Object.entries(data.STORES).map(([code, info]) => {
       const manager = (typeof mkStoreManager === 'function') ? mkStoreManager(info.name) : null;
-      if(info.error) return { code, name: info.name, manager, isError: true, error: info.error, posAmt: 0, delAmt: 0, totalAmt: 0 };
-      let posAmt = 0, delAmt = 0, totalAmt = 0;
-      (info.days || []).forEach(day => {
-        const ttl = day.SA_AMT_TTL || 0;
-        const del = day.SA_ON_AMT || 0;
-        totalAmt += ttl;
-        delAmt += del;
-        posAmt += (ttl - del);
-      });
-      return { code, name: info.name, manager, isError: false, posAmt, delAmt, totalAmt };
+      if(info.error) return { code, name: info.name, manager, isError: true, error: info.error, posAmt: 0, delAmt: 0, delCnt: 0, totalAmt: 0, channels: {} };
+
+      const channelAgg = aggregateStoreChannels_(info.channelDays); // { 라벨: {amount, cnt} }
+      const hasChannelData = Object.keys(info.channelDays || {}).length > 0;
+
+      let posAmt = 0, delAmt = 0, delCnt = 0, totalAmt = 0;
+      (info.days || []).forEach(day => { totalAmt += (day.SA_AMT_TTL || 0); });
+
+      if(hasChannelData){
+        // channelDays가 있으면 채널 집계를 배달매출·배달횟수의 근거로 사용 (더 정확함)
+        Object.values(channelAgg).forEach(v => { delAmt += v.amount; delCnt += v.cnt; });
+      } else {
+        // channelDays가 아직 없는 매장/기간은 기존 방식(SA_ON_AMT)으로 배달매출만 추정, 배달횟수는 0
+        (info.days || []).forEach(day => { delAmt += (day.SA_ON_AMT || 0); });
+      }
+      posAmt = totalAmt - delAmt;
+
+      return { code, name: info.name, manager, isError: false, posAmt, delAmt, delCnt, totalAmt, channels: channelAgg };
     });
 
     livePopulateManagerSel('liveSmManagerSel', rows);
@@ -5376,21 +5453,103 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
 
     const st = window.__liveSmSortState;
+
+    if(viewMode === 'channel'){
+      // ── 채널별 상세: 배달 채널만 컬럼화 (배민/배민1/쿠팡이츠/요기요/땡겨요 우선, 그 외는 가나다순) ──
+      const labelSet = new Set();
+      rows.forEach(r => Object.keys(r.channels || {}).forEach(l => labelSet.add(l)));
+      const channelLabels = orderedChannelLabels_(labelSet);
+
+      rows.forEach(r => {
+        r.channelTotal = Object.values(r.channels || {}).reduce((s, v) => s + (v.amount || 0), 0);
+      });
+
+      const sortKey = (st.key === 'pos' || st.key === 'del' || st.key === 'delCnt') ? 'total' : st.key; // 정리보기 전용 키는 채널뷰에선 총매출로 대체
+      rows.sort((a, b) => {
+        if(sortKey === 'total') return st.dir * ((a.channelTotal||0) - (b.channelTotal||0));
+        return st.dir * liveSmSortCompare_(a, b, sortKey);
+      });
+
+      let sumTotal = 0, errorCount = 0;
+      const sumByChannel = {}; channelLabels.forEach(l => sumByChannel[l] = 0);
+      rows.forEach(r => {
+        if(r.isError){ errorCount++; return; }
+        sumTotal += r.channelTotal || 0;
+        channelLabels.forEach(l => { sumByChannel[l] += (r.channels[l] && r.channels[l].amount) || 0; });
+      });
+
+      // ── 엑셀 다운로드용 데이터 캐시 (화면에 표시된 것과 동일한 필터/정렬 결과) ──
+      window.__liveExportCache = window.__liveExportCache || {};
+      window.__liveExportCache.summary = {
+        header: ['매장명', '담당자', ...channelLabels, '총매출'],
+        rows: [
+          ['전체 합계', '', ...channelLabels.map(l => sumByChannel[l]), sumTotal],
+          ...rows.filter(r => !r.isError).map(r => [r.name, r.manager || '-', ...channelLabels.map(l => (r.channels[l] && r.channels[l].amount) || 0), r.channelTotal || 0])
+        ]
+      };
+
+      const sortArrow = (key) => sortKey === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+      const sortTh = (key, label, align = 'right') =>
+        `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSmSortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
+
+      const bodyRows = rows.map(r => {
+        if(r.isError){
+          return `<tr class="err-row"><td style="text-align:center;">${r.name}</td>
+            <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+            <td colspan="${channelLabels.length + 1}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+        }
+        const chCells = channelLabels.map(l => `<td>${((r.channels[l] && r.channels[l].amount) || 0).toLocaleString()}</td>`).join('');
+        return `<tr>
+          <td style="text-align:center;">${r.name}</td>
+          <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+          ${chCells}
+          <td class="grand-total">${(r.channelTotal || 0).toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+
+      const sumCells = channelLabels.map(l => `<td>${sumByChannel[l].toLocaleString()}</td>`).join('');
+      const noChannelNotice = channelLabels.length === 0
+        ? `<div class="live-empty" style="padding:14px;">이 기간에는 아직 채널별 배달 데이터가 백필된 매장이 없어요. (테스트 중인 매장·기간부터 순차 반영됩니다)</div>`
+        : '';
+
+      wrap.innerHTML = `
+        <div class="live-table-card">
+          <div class="live-table-scroll">
+            <table class="live-table">
+              <thead><tr>
+                ${sortTh('name', `매장명 (${rows.length}개${errorCount ? `, 조회실패 ${errorCount}개 제외` : ''})`, 'center')}${sortTh('manager','담당자','center')}${channelLabels.map(l => sortTh('ch:'+l, l)).join('')}${sortTh('total','총매출')}
+              </tr></thead>
+              <tbody>
+                <tr class="total-row">
+                  <td>전체 합계</td><td></td>
+                  ${sumCells}
+                  <td>${sumTotal.toLocaleString()}</td>
+                </tr>
+                ${bodyRows}
+              </tbody>
+            </table>
+          </div>
+          ${noChannelNotice}
+        </div>`;
+      return;
+    }
+
+    // ── 정리보기(기본): 포스 매출 / 배달 매출 / 배달횟수 / 총매출 ──
     rows.sort((a, b) => st.dir * liveSmSortCompare_(a, b, st.key));
 
-    let sumPos = 0, sumDel = 0, sumTotal = 0, errorCount = 0;
+    let sumPos = 0, sumDel = 0, sumDelCnt = 0, sumTotal = 0, errorCount = 0;
     rows.forEach(r => {
       if(r.isError){ errorCount++; return; }
-      sumPos += r.posAmt; sumDel += r.delAmt; sumTotal += r.totalAmt;
+      sumPos += r.posAmt; sumDel += r.delAmt; sumDelCnt += r.delCnt; sumTotal += r.totalAmt;
     });
 
     // ── 엑셀 다운로드용 데이터 캐시 (화면에 표시된 것과 동일한 필터/정렬 결과) ──
     window.__liveExportCache = window.__liveExportCache || {};
     window.__liveExportCache.summary = {
-      header: ['매장명', '담당자', '포스 매출', '배달 매출', '총매출'],
+      header: ['매장명', '담당자', '포스 매출', '배달 매출', '배달횟수', '총매출'],
       rows: [
-        ['전체 합계', '', sumPos, sumDel, sumTotal],
-        ...rows.filter(r => !r.isError).map(r => [r.name, r.manager || '-', r.posAmt, r.delAmt, r.totalAmt])
+        ['전체 합계', '', sumPos, sumDel, sumDelCnt, sumTotal],
+        ...rows.filter(r => !r.isError).map(r => [r.name, r.manager || '-', r.posAmt, r.delAmt, r.delCnt, r.totalAmt])
       ]
     };
 
@@ -5402,13 +5561,14 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       if(r.isError){
         return `<tr class="err-row"><td style="text-align:center;">${r.name}</td>
           <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
-          <td colspan="3" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+          <td colspan="4" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
       }
       return `<tr>
         <td style="text-align:center;">${r.name}</td>
         <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
         <td>${r.posAmt.toLocaleString()}</td>
         <td>${r.delAmt.toLocaleString()}</td>
+        <td>${r.delCnt.toLocaleString()}건</td>
         <td class="grand-total">${r.totalAmt.toLocaleString()}</td>
       </tr>`;
     }).join('');
@@ -5418,13 +5578,14 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         <div class="live-table-scroll">
           <table class="live-table">
             <thead><tr>
-              ${sortTh('name', `매장명 (${rows.length}개${errorCount ? `, 조회실패 ${errorCount}개 제외` : ''})`, 'center')}${sortTh('manager','담당자','center')}${sortTh('pos','포스 매출')}${sortTh('del','배달 매출')}${sortTh('total','총매출')}
+              ${sortTh('name', `매장명 (${rows.length}개${errorCount ? `, 조회실패 ${errorCount}개 제외` : ''})`, 'center')}${sortTh('manager','담당자','center')}${sortTh('pos','포스 매출')}${sortTh('del','배달 매출')}${sortTh('delCnt','배달횟수')}${sortTh('total','총매출')}
             </tr></thead>
             <tbody>
               <tr class="total-row">
                 <td>전체 합계</td><td></td>
                 <td>${sumPos.toLocaleString()}</td>
                 <td>${sumDel.toLocaleString()}</td>
+                <td>${sumDelCnt.toLocaleString()}건</td>
                 <td>${sumTotal.toLocaleString()}</td>
               </tr>
               ${bodyRows}
@@ -5433,6 +5594,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         </div>
       </div>`;
   };
+
 
   // ── ⚡ 실시간 매출: 항상 "오늘" 하루 스냅샷 ──────────────────────
   window.__liveRtData = null;
