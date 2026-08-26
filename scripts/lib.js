@@ -502,10 +502,19 @@ async function fetchOneStoreProductsRange(token, code, start, end, chunkDays = M
  * 일상품정산매출(REQ_CODE 5)과 동일한 필드명(SDA_DT, CMDT_NM, SDC_QTY, SDC_AMT_TTL)으로
  * 반환한다. product-realtime-compare.js로 확정값과 합산값이 완전히 일치함을
  * 검증 완료(2026-08-13, BHD055/8월12일, 상품 15종 전부 일치).
+ *
+ * [2026-08-26 추가] OPTION_GBN === 'S'인 행은 세트구성품(세트 메뉴를 구성하는
+ * 개별 품목이 0원으로 같이 찍히는 행)으로 보고 집계에서 제외한다.
+ * ⚠️ 미검증: OPTION_GBN 필드가 REQ_CODE 6 응답에 실제로 존재하는지, 'S' 값이
+ * 세트구성품을 정확히 가리키는지는 별도 검증이 필요하다. 확인 전이라면
+ * 이 필터를 끄고(FILTER_SET_COMPONENTS = false) 원본 그대로 집계하도록 되돌릴 것.
  */
+const FILTER_SET_COMPONENTS = true;
+
 function aggregateOrderDetailToProducts(rows) {
   const byKey = {};
   for (const r of rows) {
+    if (FILTER_SET_COMPONENTS && r.OPTION_GBN === 'S') continue; // 세트구성품 제외
     const key = r.SDA_DT + '|' + r.CMDT_NM;
     if (!byKey[key]) byKey[key] = { SDA_DT: r.SDA_DT, CMDT_NM: r.CMDT_NM, SDC_QTY: 0, SDC_AMT_TTL: 0 };
     byKey[key].SDC_QTY += Number(r.SC_QTY || 0);
@@ -611,6 +620,7 @@ module.exports = {
   fetchOneStoreProductsRange,
   fetchOneStoreOrderDetail,
   fetchOneStoreProductsRealtime,
+  aggregateOrderDetailToProducts,
   fetchProductCategories,
   buildProductCategoryMap,
 };
