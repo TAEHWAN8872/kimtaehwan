@@ -1,99 +1,93 @@
-// scripts/backfill.js
-// ROLLING_DAYS(기본 90일)치 데이터를 다시 받아서 기존 data/live-daily.json에
-// "병합"한다. 평소 자동 실행되는 스크립트가 아니라 GitHub Actions에서
-// workflow_dispatch로 수동 실행하는 용도입니다.
+// scripts/backfill-channel-sales.js
+// 지정한 매장/기간에 대해 REQ_CODE 3(매출정보 마스터)을 하루씩 호출해서
+// 채널별(배민/쿠팡이츠 등) 매출을 live-daily.json의 STORES[code].channelDays에 백필한다.
 //
-// [2026-08-21 수정] 기존에는 fs.writeFileSync로 파일 전체를 새로 써서
-// ROLLING_DAYS 범위 밖(과거)의 이력이 통째로 사라지는 위험이 있었음
-// (예: rolling_days=20으로 돌리면 최근 20일 빼고 2022년부터의 전체
-// 이력이 삭제됨). patch-missing-days.js와 동일한 병합 방식으로 바꿔서,
-// 새로 받은 [start, end] 구간만 교체하고 그 밖의 기존 데이터는 보존한다.
+// [왜 하루씩 호출하나] fetchOneStoreRealtimeWithOrders(REQ_CODE 3)는 "오늘"처럼
+// 단일 날짜 조회용으로 만들어졌지만 date 파라미터를 그대로 받으므로 과거 날짜에도
+// 재사용할 수 있다. 다만 스펙상 REQ_CODE 3의 날짜 범위 제한이 확인되지 않았기
+// 때문에(daily-update.js 상단 주석 참고), 안전하게 하루 단위로만 호출한다.
 //
-// tpay API는 조회 범위가 15일을 넘어가면 에러 없이 빈 배열을 반환하는 것으로
-// 확인되어(디버그 결과: 14일=정상, 31일 이상=전멸), fetchOneStoreRange()가
-// 요청 범위를 15일 단위로 자동으로 쪼개서 여러 번 호출한 뒤 합쳐준다.
+// [채널 코드 매핑 미완성 주의] lib.js의 CHANNEL_NAME_MAP이 비어있는 동안은
+// IFSA_TP 코드값(예: 'OKB')이 그대로 채널명으로 저장된다. 나중에 매핑표를
+// 채운 뒤 이 스크립트를 다시 돌리면 채널명이 갱신된다(덮어쓰기 방식이라 안전).
 //
-// 사용법(로컬): TPAY_TOKEN=xxx node scripts/backfill.js
-// 사용법(Actions): workflow_dispatch 로 tpay-sync.yml의 backfill job 실행
+// 사용법(로컬): TPAY_TOKEN=xxx BACKFILL_SHOP_NO=BHD053 BACKFILL_START=20260820 node scripts/backfill-channel-sales.js
+// 사용법(Actions): workflow_dispatch로 실행, 위 3개 입력값을 파라미터로 전달
 
 const fs = require('fs');
 const path = require('path');
-const { kstDateString, sleep, fetchOneStoreRange } = require('./lib');
+const {
+  kstDateString,
+  addDaysYmd,
+  sleep,
+  fetchOneStoreRealtimeWithOrders,
+  aggregateOrdersToChannelDays,
+} = require('./lib');
 
-const ROLLING_DAYS = Number(process.env.ROLLING_DAYS || 90);
 const DATA_PATH = path.join(__dirname, '..', 'data', 'live-daily.json');
-const STORE_MAP_PATH = path.join(__dirname, '..', 'data', 'store-map.json');
 
 function loadExisting() {
-  if (!fs.existsSync(DATA_PATH)) return { STORES: {} };
-  try {
-    return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-  } catch (e) {
-    console.warn('기존 data/live-daily.json 파싱 실패, 새로 시작합니다:', e.message);
-    return { STORES: {} };
+  if (!fs.existsSync(DATA_PATH)) {
+    throw new Error(`${DATA_PATH} 파일이 없습니다. daily-update.js를 먼저 한 번 이상 실행하세요.`);
   }
+  return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
 }
 
 async function main() {
   const token = process.env.TPAY_TOKEN;
   if (!token) throw new Error('TPAY_TOKEN 환경변수가 없습니다.');
 
-  const storeMap = JSON.parse(fs.readFileSync(STORE_MAP_PATH, 'utf8')); // [[name, code], ...]
+  // 기본값: 광주수완점, 배달매출 테스트 시작일(8/20)부터 어제까지
+  const code = process.env.BACKFILL_SHOP_NO || 'BHD053';
+  const start = process.env.BACKFILL_START || '20260820';
+  const end = process.env.BACKFILL_END || kstDateString(-1);
 
-  const end = kstDateString(0);
-  const start = kstDateString(-ROLLING_DAYS);
+  const data = loadExisting();
+  if (!data.STORES[code]) {
+    throw new Error(`${code} 매장이 live-daily.json에 없습니다. daily-update.js/backfill.js를 먼저 돌리세요.`);
+  }
 
-  const existing = loadExisting();
-  const stores = existing.STORES || {};
+  const name = data.STORES[code].name;
+  const existingChannelDays = data.STORES[code].channelDays || {};
 
-  console.log(`백필 시작: ${start} ~ ${end}, 매장 ${storeMap.length}개 (15일 단위 자동 분할 조회, 기존 데이터에 병합)`);
+  console.log(`채널별 매출 백필 시작: ${name}(${code}), ${start} ~ ${end} (하루 단위 REQ_CODE 3 호출)`);
 
   const failed = [];
-  const partial = [];
+  let cursor = start;
 
-  for (let i = 0; i < storeMap.length; i++) {
-    const [name, code] = storeMap[i];
-    const result = await fetchOneStoreRange(token, code, start, end);
+  while (true) {
+    const result = await fetchOneStoreRealtimeWithOrders(token, code, cursor);
 
     if (result.error) {
-      failed.push(`${code}(${name}): ${result.error}`);
-      // 실패 시 기존 값 유지 (없으면 error 상태로 최초 기록). 기존 데이터를 지우지 않는다.
-      if (!stores[code]) stores[code] = { name, error: result.error };
+      failed.push(`${cursor}: ${result.error}`);
+      console.warn(`${cursor} 실패: ${result.error} (기존 channelDays 유지)`);
     } else {
-      // [start, end] 구간에 해당하는 기존 레코드만 제거하고 새 값으로 교체.
-      // 구간 밖의 과거 이력은 그대로 보존된다.
-      const prev = stores[code] || { name, days: [] };
-      const keptDays = (prev.days || []).filter((d) => d.SDA_DT < start || d.SDA_DT > end);
-      stores[code] = { name: prev.name || name, days: [...keptDays, ...result.days] };
-
-      if (result.partialError) {
-        partial.push(`${code}(${name}): ${result.partialError}`);
+      const channelByDay = aggregateOrdersToChannelDays(result.orders);
+      const dayResult = channelByDay[cursor];
+      if (dayResult) {
+        existingChannelDays[cursor] = dayResult;
+        const summary = Object.entries(dayResult)
+          .map(([ch, v]) => `${ch}: ${v.amount}원/${v.cnt}건`)
+          .join(', ');
+        console.log(`${cursor} 완료 — ${summary || '주문 없음'}`);
+      } else {
+        // 그날 주문이 0건이면 channelByDay 자체에 그 날짜 키가 안 생김.
+        // 기존에 값이 있었다면 지우지 않고(있을 이유는 없지만) 그대로 둔다.
+        console.log(`${cursor} 완료 — 주문 없음`);
       }
     }
 
-    if (i % 20 === 0) console.log(`진행: ${i + 1}/${storeMap.length}`);
-    if (i < storeMap.length - 1) await sleep(150);
+    if (cursor === end) break;
+    cursor = addDaysYmd(cursor, 1);
+    await sleep(200);
   }
 
-  const output = {
-    ...existing,
-    // START는 기존 값과 이번 조회 시작일 중 더 이른 날짜를 유지 (과거 이력 보존 반영)
-    START: existing.START && existing.START < start ? existing.START : start,
-    END: end,
-    STORES: stores,
-    updatedAt: new Date().toISOString(),
-    lastRunType: 'backfill',
-  };
+  data.STORES[code].channelDays = existingChannelDays;
+  data.updatedAt = new Date().toISOString();
 
-  fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
-  fs.writeFileSync(DATA_PATH, JSON.stringify(output));
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data));
 
-  const successCount = storeMap.length - failed.length - partial.length;
-  console.log(
-    `백필 완료: 완전성공 ${successCount}개 / 부분성공 ${partial.length}개 / 실패 ${failed.length}개 (기존 이력 보존됨)`
-  );
-  if (partial.length) console.log('부분 실패 매장(일부 구간만 누락):\n' + partial.join('\n'));
-  if (failed.length) console.log('완전 실패 매장:\n' + failed.join('\n'));
+  console.log(`백필 저장 완료. 실패한 날짜 ${failed.length}건${failed.length ? ':\n' + failed.join('\n') : ''}`);
 }
 
 main().catch((e) => {
