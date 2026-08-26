@@ -25,7 +25,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const { kstDateString, sleep, fetchOneStoreRealtimeWithOrders, fetchOneStoreOrderDetail } = require('./lib');
+const {
+  kstDateString,
+  sleep,
+  fetchOneStoreRealtimeWithOrders,
+  fetchOneStoreOrderDetail,
+  aggregateOrdersToChannelDays,
+} = require('./lib');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'live-daily.json');
 const STORE_MAP_PATH = path.join(__dirname, '..', 'data', 'store-map.json');
@@ -123,7 +129,18 @@ async function main() {
     } else {
       const prev = stores[code] || { name, days: [] };
       const prevDays = (prev.days || []).filter((d) => d.SDA_DT !== today);
-      stores[code] = { name, days: [...prevDays, ...result.days] };
+      // 오늘자 채널별(배민/쿠팡이츠 등) 매출 — result.orders는 REQ_CODE 3 원본이라
+      // 이미 fetchOneStoreRealtimeWithOrders 호출 한 번으로 얻어져 있음 (API 호출 추가 없음).
+      // 과거 날짜의 channelDays는 그대로 두고 오늘자만 교체한다.
+      const channelToday = aggregateOrdersToChannelDays(result.orders);
+      stores[code] = {
+        name,
+        days: [...prevDays, ...result.days],
+        channelDays: {
+          ...(prev.channelDays || {}),
+          ...(channelToday[today] ? { [today]: channelToday[today] } : {}),
+        },
+      };
       successCount++;
 
       // 오늘 주문이 있는 매장만 품목 상세(REQ_CODE 6)를 추가로 조회 (불필요한 API 호출 절약)
