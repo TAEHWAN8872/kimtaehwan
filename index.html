@@ -5276,8 +5276,10 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   };
 
   // ── 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) ──
-  // live-daily.json의 일별 SA_AMT_TTL(총매출)·SA_DEL_AMT(배달매출) 필드를 기간 합산해서
+  // live-daily.json의 일별 SA_AMT_TTL(총매출)·SA_ON_AMT(온라인/배달 매출) 필드를 기간 합산해서
   // 포스 매출(= 총매출 - 배달매출) / 배달 매출 / 총매출을 매장별로 집계한다.
+  // ※ SA_DEL_AMT는 2024년부터 계속 값이 잡혀있던 필드라 이번 배달 테스트와는 무관함(취소/차감 관련 추정).
+  //   실제로 2026-08-20부터 광주수완점에서만 값이 잡히기 시작한 필드는 SA_ON_AMT였음(교차검증 완료).
   // ※ 배달횟수, 배민/쿠팡이츠 등 채널별 구분은 현재 수집되는 데이터에 근거 필드가 없어 보류함.
   window.__liveSmData = null;
 
@@ -5353,7 +5355,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       let posAmt = 0, delAmt = 0, totalAmt = 0;
       (info.days || []).forEach(day => {
         const ttl = day.SA_AMT_TTL || 0;
-        const del = day.SA_DEL_AMT || 0;
+        const del = day.SA_ON_AMT || 0;
         totalAmt += ttl;
         delAmt += del;
         posAmt += (ttl - del);
