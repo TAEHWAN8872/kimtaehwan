@@ -573,6 +573,7 @@ body.hide-names .store-name:hover{
       <div class="live-subtab" id="liveSubTab-receipt" onclick="window.switchLiveSubTab('receipt')">🧾 일판매 매출</div>
       <div class="live-subtab" id="liveSubTab-period" onclick="window.switchLiveSubTab('period')">📅 기간별 매출</div>
       <div class="live-subtab" id="liveSubTab-product" onclick="window.switchLiveSubTab('product')">🏷️ 상품별 매출</div>
+      <div class="live-subtab" id="liveSubTab-summary" onclick="window.switchLiveSubTab('summary')">🧮 매출정리</div>
     </div>
 
     <!-- ⚡ 실시간 매출: 오늘 하루 스냅샷, 서브탭 진입 시 자동 조회 -->
@@ -666,6 +667,39 @@ body.hide-names .store-name:hover{
         <span class="spin"></span>상품별 매출 데이터를 가져오는 중입니다...
       </div>
       <div id="livePrTableWrap"></div>
+    </div>
+
+    <!-- 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) -->
+    <div id="liveSummarySection" style="display:none;">
+      <div class="live-toolbar">
+        <label>필터</label>
+        <select id="liveSmFilterType" class="live-input" onchange="window.switchLiveSmFilterType()">
+          <option value="month">월별</option>
+          <option value="period">기간별</option>
+        </select>
+        <span id="liveSmMonthWrap">
+          <input id="liveSmMonth" type="month" class="live-input">
+        </span>
+        <span id="liveSmPeriodWrap" style="display:none;">
+          <label>시작일</label>
+          <input id="liveSmStartDate" type="date" class="live-input">
+          <label>종료일</label>
+          <input id="liveSmEndDate" type="date" class="live-input">
+        </span>
+        <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
+        <button class="live-refresh-btn" onclick="window.downloadLiveSummaryExcel()">⬇️ 엑셀 다운로드</button>
+        <input id="liveSmSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveSummaryTable()"
+          class="live-input" style="min-width:180px;">
+        <label>담당자</label>
+        <select id="liveSmManagerSel" class="live-input" onchange="window.renderLiveSummaryTable()">
+          <option value="all">전체</option>
+        </select>
+        <span id="liveSmUpdatedAt" class="live-updated-at"></span>
+      </div>
+      <div id="liveSmLoading" class="live-loading" style="display:none;">
+        <span class="spin"></span>매출정리 데이터를 가져오는 중입니다...
+      </div>
+      <div id="liveSmTableWrap"></div>
     </div>
   </div>
 
@@ -4953,10 +4987,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     document.getElementById('liveReceiptSection').style.display = (sub==='receipt') ? '' : 'none';
     document.getElementById('livePeriodSection').style.display = (sub==='period') ? '' : 'none';
     document.getElementById('liveProductSection').style.display = (sub==='product') ? '' : 'none';
+    document.getElementById('liveSummarySection').style.display = (sub==='summary') ? '' : 'none';
     document.getElementById('liveSubTab-realtime').classList.toggle('active', sub==='realtime');
     document.getElementById('liveSubTab-receipt').classList.toggle('active', sub==='receipt');
     document.getElementById('liveSubTab-period').classList.toggle('active', sub==='period');
     document.getElementById('liveSubTab-product').classList.toggle('active', sub==='product');
+    document.getElementById('liveSubTab-summary').classList.toggle('active', sub==='summary');
     if(sub==='realtime' && !window.__liveRtData){ window.loadLiveRealtime(); }
     if(sub==='receipt' && !window.__liveRcData){ window.loadLiveReceipt(); }
     if(sub==='period' && !window.__livePdData){
@@ -4979,6 +5015,28 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       }
       if(!endInput.value) endInput.value = ymdToInputDate_(todayYmd_());
     }
+    if(sub==='summary'){
+      // 매출정리 첫 진입 시 기본값: 월별 필터, 이번 달 선택 (조회는 사용자가 직접 눌러야 실행)
+      const monthInput = document.getElementById('liveSmMonth');
+      const startInput = document.getElementById('liveSmStartDate');
+      const endInput = document.getElementById('liveSmEndDate');
+      if(!monthInput.value){
+        const now = new Date();
+        monthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      }
+      if(!startInput.value){
+        const now = new Date();
+        startInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      }
+      if(!endInput.value) endInput.value = ymdToInputDate_(todayYmd_());
+    }
+  };
+
+  // 매출정리: 월별/기간별 필터 UI 전환
+  window.switchLiveSmFilterType = function(){
+    const val = document.getElementById('liveSmFilterType').value;
+    document.getElementById('liveSmMonthWrap').style.display = (val==='month') ? '' : 'none';
+    document.getElementById('liveSmPeriodWrap').style.display = (val==='period') ? '' : 'none';
   };
 
   const LIVE_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','박영태 대리','강동우 사원','이현민 사원'];
@@ -5212,6 +5270,166 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   };
   window.downloadLiveProductExcel = function(){
     downloadLiveTableExcel_('product', '상품별매출', '상품별매출');
+  };
+  window.downloadLiveSummaryExcel = function(){
+    downloadLiveTableExcel_('summary', '매출정리', '매출정리');
+  };
+
+  // ── 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) ──
+  // live-daily.json의 일별 SA_AMT_TTL(총매출)·SA_DEL_AMT(배달매출) 필드를 기간 합산해서
+  // 포스 매출(= 총매출 - 배달매출) / 배달 매출 / 총매출을 매장별로 집계한다.
+  // ※ 배달횟수, 배민/쿠팡이츠 등 채널별 구분은 현재 수집되는 데이터에 근거 필드가 없어 보류함.
+  window.__liveSmData = null;
+
+  window.loadLiveSummary = async function(){
+    const filterType = document.getElementById('liveSmFilterType').value;
+    let start, end;
+    if(filterType === 'month'){
+      const val = document.getElementById('liveSmMonth').value; // yyyy-mm
+      if(!val){ alert('조회할 월을 선택해주세요.'); return; }
+      const [y, m] = val.split('-').map(Number);
+      start = `${y}${String(m).padStart(2,'0')}01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      end = `${y}${String(m).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+      const today = todayYmd_();
+      if(end > today) end = today; // 이번 달처럼 미래 날짜가 포함되는 경우 오늘까지로 제한
+    } else {
+      const startInput = document.getElementById('liveSmStartDate');
+      const endInput = document.getElementById('liveSmEndDate');
+      if(!startInput.value || !endInput.value){
+        alert('시작일과 종료일을 모두 선택해주세요.');
+        return;
+      }
+      start = inputDateToYmd_(startInput.value);
+      end = inputDateToYmd_(endInput.value);
+      if(start > end){
+        alert('시작일이 종료일보다 늦을 수 없어요.');
+        return;
+      }
+    }
+
+    document.getElementById('liveSmLoading').style.display = 'block';
+    document.getElementById('liveSmTableWrap').innerHTML = '';
+    try {
+      const data = await fetchLiveDaily_(start, end);
+      window.__liveSmData = data;
+      document.getElementById('liveSmUpdatedAt').textContent =
+        'OKPOS 동기화: ' + formatSyncTime_(data.CACHED_AT) + ` (조회 기간: ${ymdToInputDate_(start)} ~ ${ymdToInputDate_(end)})`;
+      window.renderLiveSummaryTable();
+    } catch(err){
+      document.getElementById('liveSmTableWrap').innerHTML =
+        `<div style="padding:20px;color:#e05555;">불러오기 실패: ${err.message}</div>`;
+    } finally {
+      document.getElementById('liveSmLoading').style.display = 'none';
+    }
+  };
+
+  window.__liveSmSortState = window.__liveSmSortState || { key: 'total', dir: -1 };
+
+  function liveSmSortCompare_(a, b, key){
+    switch(key){
+      case 'manager': return (a.manager||'').localeCompare(b.manager||'', 'ko');
+      case 'pos': return (a.posAmt||0) - (b.posAmt||0);
+      case 'del': return (a.delAmt||0) - (b.delAmt||0);
+      case 'total': return (a.totalAmt||0) - (b.totalAmt||0);
+      case 'name': default: return (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+  }
+
+  window.liveSmSortBy = function(key){
+    const st = window.__liveSmSortState;
+    if(st.key === key){ st.dir *= -1; } else { st.key = key; st.dir = (key==='name'||key==='manager') ? 1 : -1; }
+    window.renderLiveSummaryTable();
+  };
+
+  window.renderLiveSummaryTable = function(){
+    const wrap = document.getElementById('liveSmTableWrap');
+    const data = window.__liveSmData;
+    if(!data){ wrap.innerHTML = ''; return; }
+
+    let rows = Object.entries(data.STORES).map(([code, info]) => {
+      const manager = (typeof mkStoreManager === 'function') ? mkStoreManager(info.name) : null;
+      if(info.error) return { code, name: info.name, manager, isError: true, error: info.error, posAmt: 0, delAmt: 0, totalAmt: 0 };
+      let posAmt = 0, delAmt = 0, totalAmt = 0;
+      (info.days || []).forEach(day => {
+        const ttl = day.SA_AMT_TTL || 0;
+        const del = day.SA_DEL_AMT || 0;
+        totalAmt += ttl;
+        delAmt += del;
+        posAmt += (ttl - del);
+      });
+      return { code, name: info.name, manager, isError: false, posAmt, delAmt, totalAmt };
+    });
+
+    livePopulateManagerSel('liveSmManagerSel', rows);
+    const managerVal = document.getElementById('liveSmManagerSel') ? document.getElementById('liveSmManagerSel').value : 'all';
+    if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+
+    const q = (document.getElementById('liveSmSearch').value || '').trim();
+    if(q) rows = rows.filter(r => (r.name||'').includes(q));
+
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">${q ? `"${q}" 검색 결과가 없어요.` : '표시할 매장 데이터가 없어요.'}</div>`;
+      return;
+    }
+
+    const st = window.__liveSmSortState;
+    rows.sort((a, b) => st.dir * liveSmSortCompare_(a, b, st.key));
+
+    let sumPos = 0, sumDel = 0, sumTotal = 0, errorCount = 0;
+    rows.forEach(r => {
+      if(r.isError){ errorCount++; return; }
+      sumPos += r.posAmt; sumDel += r.delAmt; sumTotal += r.totalAmt;
+    });
+
+    // ── 엑셀 다운로드용 데이터 캐시 (화면에 표시된 것과 동일한 필터/정렬 결과) ──
+    window.__liveExportCache = window.__liveExportCache || {};
+    window.__liveExportCache.summary = {
+      header: ['매장명', '담당자', '포스 매출', '배달 매출', '총매출'],
+      rows: [
+        ['전체 합계', '', sumPos, sumDel, sumTotal],
+        ...rows.filter(r => !r.isError).map(r => [r.name, r.manager || '-', r.posAmt, r.delAmt, r.totalAmt])
+      ]
+    };
+
+    const sortArrow = (key) => st.key === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+    const sortTh = (key, label, align = 'right') =>
+      `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSmSortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
+
+    const bodyRows = rows.map(r => {
+      if(r.isError){
+        return `<tr class="err-row"><td style="text-align:center;">${r.name}</td>
+          <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+          <td colspan="3" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+      }
+      return `<tr>
+        <td style="text-align:center;">${r.name}</td>
+        <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+        <td>${r.posAmt.toLocaleString()}</td>
+        <td>${r.delAmt.toLocaleString()}</td>
+        <td class="grand-total">${r.totalAmt.toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              ${sortTh('name', `매장명 (${rows.length}개${errorCount ? `, 조회실패 ${errorCount}개 제외` : ''})`, 'center')}${sortTh('manager','담당자','center')}${sortTh('pos','포스 매출')}${sortTh('del','배달 매출')}${sortTh('total','총매출')}
+            </tr></thead>
+            <tbody>
+              <tr class="total-row">
+                <td>전체 합계</td><td></td>
+                <td>${sumPos.toLocaleString()}</td>
+                <td>${sumDel.toLocaleString()}</td>
+                <td>${sumTotal.toLocaleString()}</td>
+              </tr>
+              ${bodyRows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
   };
 
   // ── ⚡ 실시간 매출: 항상 "오늘" 하루 스냅샷 ──────────────────────
