@@ -12,6 +12,14 @@
 //
 // 상품 단위라 데이터량이 커서, 기본 90일로 제한합니다.
 //
+// [2026-08-27 변경] 90일 넘는 장기간(예: 2023년부터 전체)을 한 번에 돌리면
+// 전체 매장×전체날짜 데이터를 메모리에 다 쌓아뒀다가 마지막에 한 번에
+// JSON.stringify + writeFileSync 하는 구조라 OOM(exit 134)으로 죽었다.
+// 그래서 매장 하나가 끝날 때마다 즉시 스트림으로 파일에 써버리고 메모리에서
+// 비우는 구조로 바꿨다. 또한 임시 파일(.tmp)에 다 쓴 다음 성공 시에만
+// 원본 파일명으로 rename하도록 해서, 중간에 죽어도 기존 data/product-daily.json은
+// 그대로 안전하게 남는다 (예전엔 실행 자체가 통째로 덮어쓰는 방식이라 위험했음).
+//
 // 사용법(Actions): workflow_dispatch 로 tpay-sync.yml의 mode=product-backfill 실행
 
 const fs = require('fs');
@@ -25,14 +33,9 @@ const {
 } = require('./lib');
 
 const ROLLING_DAYS = Number(process.env.PRODUCT_ROLLING_DAYS || 90);
-// [2026-08-26 추가] 매장×하루를 완전 순차로 돌리면 매장수×일수(예: 153×91=13,923회)
-// 호출이 한 줄로 쌓여서 실행 시간이 1시간 반 가까이 걸렸다. 매장끼리는 서로 독립적인
-// 요청이라 여러 개를 동시에 처리하도록 워커 풀로 바꿔서 시간을 줄인다.
-// ⚠️ tpay API의 초당 요청 제한(레이트리밋) 여부를 확인한 적이 없다 — 동시 실행 수를
-// 너무 높이면 오히려 실패율이 올라갈 수 있으니, 처음엔 작게 시작해서 실패 카운트를
-// 보고 조절할 것.
 const CONCURRENCY = Number(process.env.PRODUCT_BACKFILL_CONCURRENCY || 8);
 const DATA_PATH = path.join(__dirname, '..', 'data', 'product-daily.json');
+const TMP_PATH = `${DATA_PATH}.tmp`;
 const STORE_MAP_PATH = path.join(__dirname, '..', 'data', 'store-map.json');
 
 function toCompactRows(aggregatedRows) {
@@ -53,13 +56,13 @@ function listDates(start, end) {
 
 /**
  * (매장, 날짜) 작업 목록을 CONCURRENCY개의 워커가 나눠서 병렬로 처리한다.
- * 각 워커는 공유 큐(작업 배열 + 인덱스 커서)에서 다음 작업을 하나씩 꺼내 가므로,
- * 매장별 날짜 수가 균등하지 않아도 노는 워커 없이 고르게 분배된다.
- * 결과는 매장코드별로 { rows: [...], errors: [...] }에 누적된다.
- * (JS는 싱글 스레드라 배열 push 자체는 레이스컨디션 걱정 없음 — await 지점에서만
- * 다른 워커로 제어권이 넘어간다.)
+ * 예전처럼 전체 결과를 메모리에 다 쌓아두지 않고, 매장 하나의 모든 날짜가
+ * 완료되는 즉시 writeStore(code, name, rows)를 호출해 파일에 흘려 쓰고
+ * 그 매장의 메모리(storeRows/storeErrors)를 비운다. 매장별 완료 카운터
+ * 증가와 완료 체크 사이에 await가 없어서(동기 실행 구간) 같은 매장을
+ * 두 워커가 동시에 flush하는 레이스컨디션은 발생하지 않는다.
  */
-async function runProductBackfill(token, storeMap, dates) {
+async function runProductBackfillStreaming(token, storeMap, dates, writeStore) {
   const tasks = [];
   for (const [name, code] of storeMap) {
     for (const date of dates) tasks.push({ name, code, date });
@@ -67,20 +70,50 @@ async function runProductBackfill(token, storeMap, dates) {
 
   const storeRows = {};
   const storeErrors = {};
+  const storeCompleted = {};
   for (const [, code] of storeMap) {
     storeRows[code] = [];
     storeErrors[code] = [];
+    storeCompleted[code] = 0;
   }
 
+  const perStoreTotal = dates.length;
   let nextIndex = 0;
   let completed = 0;
   const total = tasks.length;
+
+  const failedStores = [];
+  const partialStores = [];
+  let successCount = 0;
+
+  async function flushStoreIfDone(code, name) {
+    if (storeCompleted[code] !== perStoreTotal) return;
+
+    const rows = storeRows[code];
+    const errors = storeErrors[code];
+    let entryRows;
+
+    if (errors.length > 0 && rows.length === 0) {
+      failedStores.push(`${code}(${name}): ${errors.join(' | ')}`);
+      entryRows = [];
+    } else {
+      entryRows = toCompactRows(rows);
+      if (errors.length > 0) partialStores.push(`${code}(${name}): ${errors.join(' | ')}`);
+      else successCount++;
+    }
+
+    await writeStore(code, name, entryRows);
+
+    // 파일에 이미 기록됐으니 메모리에서 비운다 — 이게 OOM 방지의 핵심
+    delete storeRows[code];
+    delete storeErrors[code];
+  }
 
   async function worker() {
     while (true) {
       const myIndex = nextIndex++;
       if (myIndex >= total) return;
-      const { code, date } = tasks[myIndex];
+      const { name, code, date } = tasks[myIndex];
 
       const result = await fetchOneStoreOrderDetail(token, code, date);
       if (result.error) {
@@ -89,16 +122,19 @@ async function runProductBackfill(token, storeMap, dates) {
         storeRows[code].push(...aggregateOrderDetailToProducts(result.rows));
       }
 
+      storeCompleted[code]++;
       completed++;
       if (completed % 200 === 0 || completed === total) {
         console.log(`진행: ${completed}/${total}`);
       }
+
+      await flushStoreIfDone(code, name);
       await sleep(50); // 워커별 최소 간격 — 완전히 쉼 없이 몰아치지 않도록
     }
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
-  return { storeRows, storeErrors };
+  return { failedStores, partialStores, successCount };
 }
 
 async function main() {
@@ -113,48 +149,60 @@ async function main() {
 
   console.log(
     `상품별 백필 시작: ${start} ~ ${end} (${dates.length}일), 매장 ${storeMap.length}개 ` +
-      `(REQ_CODE 6, 동시 실행 ${CONCURRENCY}개 — 세트구성품·취소/반품 제외)`
+      `(REQ_CODE 6, 동시 실행 ${CONCURRENCY}개 — 세트구성품·취소/반품 제외, 스트리밍 저장)`
   );
   console.log(`총 작업 수: 매장 ${storeMap.length} × ${dates.length}일 = ${storeMap.length * dates.length}건`);
 
-  const { storeRows, storeErrors } = await runProductBackfill(token, storeMap, dates);
+  fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
+  const out = fs.createWriteStream(TMP_PATH, { encoding: 'utf8' });
 
-  const stores = {};
-  const failed = [];
-  const partial = [];
-
-  for (const [name, code] of storeMap) {
-    const rows = storeRows[code];
-    const errors = storeErrors[code];
-
-    if (errors.length > 0 && rows.length === 0) {
-      failed.push(`${code}(${name}): ${errors.join(' | ')}`);
-      stores[code] = { name, rows: [] };
-    } else {
-      stores[code] = { name, rows: toCompactRows(rows) };
-      if (errors.length > 0) partial.push(`${code}(${name}): ${errors.join(' | ')}`);
-    }
+  function writeChunk(chunk) {
+    return new Promise((resolve, reject) => {
+      const ok = out.write(chunk, (err) => (err ? reject(err) : undefined));
+      if (ok) resolve();
+      else out.once('drain', resolve); // 백프레셔 — 버퍼 비워질 때까지 대기
+    });
   }
 
-  const output = {
-    START: start,
-    END: end,
-    FORMAT: ['date', 'productName', 'qty', 'amount'],
-    STORES: stores,
-    updatedAt: new Date().toISOString(),
-    lastRunType: 'product-backfill',
-  };
-
-  fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
-  fs.writeFileSync(DATA_PATH, JSON.stringify(output));
-
-  const sizeMB = (Buffer.byteLength(JSON.stringify(output)) / 1024 / 1024).toFixed(1);
-  console.log(
-    `상품별 백필 완료: 완전성공 ${storeMap.length - failed.length - partial.length}개 / ` +
-      `부분성공 ${partial.length}개 / 실패 ${failed.length}개 / 파일크기 약 ${sizeMB}MB`
+  await writeChunk(
+    `{"START":${JSON.stringify(start)},"END":${JSON.stringify(end)},` +
+      `"FORMAT":${JSON.stringify(['date', 'productName', 'qty', 'amount'])},"STORES":{`
   );
-  if (partial.length) console.log('부분 실패 매장(일부 날짜만 누락):\n' + partial.join('\n'));
-  if (failed.length) console.log('완전 실패 매장:\n' + failed.join('\n'));
+
+  let isFirstStore = true;
+  async function writeStore(code, name, rows) {
+    const prefix = isFirstStore ? '' : ',';
+    isFirstStore = false;
+    await writeChunk(
+      `${prefix}${JSON.stringify(code)}:{"name":${JSON.stringify(name)},"rows":${JSON.stringify(rows)}}`
+    );
+  }
+
+  const { failedStores, partialStores, successCount } = await runProductBackfillStreaming(
+    token,
+    storeMap,
+    dates,
+    writeStore
+  );
+
+  await writeChunk(
+    `},"updatedAt":${JSON.stringify(new Date().toISOString())},"lastRunType":"product-backfill"}`
+  );
+
+  await new Promise((resolve, reject) => {
+    out.end((err) => (err ? reject(err) : resolve()));
+  });
+
+  // 여기까지 왔다는 건 전체 쓰기가 성공했다는 뜻 — 이제야 원본 파일 교체
+  fs.renameSync(TMP_PATH, DATA_PATH);
+
+  const sizeMB = (fs.statSync(DATA_PATH).size / 1024 / 1024).toFixed(1);
+  console.log(
+    `상품별 백필 완료: 완전성공 ${successCount}개 / 부분성공 ${partialStores.length}개 / ` +
+      `실패 ${failedStores.length}개 / 파일크기 약 ${sizeMB}MB`
+  );
+  if (partialStores.length) console.log('부분 실패 매장(일부 날짜만 누락):\n' + partialStores.join('\n'));
+  if (failedStores.length) console.log('완전 실패 매장:\n' + failedStores.join('\n'));
 }
 
 main().catch((e) => {
