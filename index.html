@@ -5305,14 +5305,18 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const sum = validMonths.reduce((s,m) => s + (totalByMonth[m]||0), 0);
       avgTotalByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
     });
+    // 전체 합계 행에 붙일 매장수/평균 정보: 조회된 매장수(에러 제외)와, 매출이 있었던 매장 기준 매장당 평균
+    const storeCountTotal = computed.filter(r => !r.isError).length;
+    const storeCountWithSales = computed.filter(r => !r.isError && r.rowTotal > 0).length;
+    const avgPerStoreTotal = storeCountWithSales > 0 ? Math.round(grandTotal / storeCountWithSales) : 0;
     const totalRowMid = isPeriod
-      ? `<td>${grandTotal.toLocaleString()}</td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}</td>`).join('')}${dates.map(d => `<td>${totalByDate[d.ymd].toLocaleString()}</td>`).join('')}`
+      ? `<td>${grandTotal.toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(매장당 평균 ${avgPerStoreTotal.toLocaleString()}원 · ${storeCountWithSales}개)</span></td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountWithSales}개 매장)</span></td>`).join('')}${dates.map(d => `<td>${totalByDate[d.ymd].toLocaleString()}</td>`).join('')}`
       : `${dates.map(d => `<td>${totalByDate[d.ymd].toLocaleString()}</td>`).join('')}<td>${grandTotal.toLocaleString()}</td>`;
 
     const totalRow = `<tr class="total-row">
         <td>전체 합계${errorCount ? ` <span style="font-weight:400;color:#e0895c;">(조회실패 ${errorCount}개 제외)</span>` : ''}</td>
         <td></td>
-        <td style="font-weight:400;color:#5c7690;">(기간 ${dates.length}일)</td>
+        <td style="font-weight:400;color:#5c7690;">(기간 ${dates.length}일)${isPeriod ? `<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">${storeCountTotal}개 매장</span>` : ''}</td>
         ${totalRowMid}
       </tr>`;
 
@@ -6276,12 +6280,16 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const sum = validMonths.reduce((s,m) => s + (totalByMonth[m]||0), 0);
       avgTotalByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
     });
-    const totalRowMid = `<td>${grandTotal.toLocaleString()}</td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}</td>`).join('')}${months.map(m => `<td>${totalByMonth[m].toLocaleString()}</td>`).join('')}`;
+    // 전체 합계 행에 붙일 매장수/평균 정보: 조회된 매장수(에러 제외)와, 매출이 있었던 매장 기준 매장당 평균
+    const storeCountTotal = computed.filter(r => !r.isError).length;
+    const storeCountWithSales = computed.filter(r => !r.isError && r.rowTotal > 0).length;
+    const avgPerStoreTotal = storeCountWithSales > 0 ? Math.round(grandTotal / storeCountWithSales) : 0;
+    const totalRowMid = `<td>${grandTotal.toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(매장당 평균 ${avgPerStoreTotal.toLocaleString()}원 · ${storeCountWithSales}개)</span></td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountWithSales}개 매장)</span></td>`).join('')}${months.map(m => `<td>${totalByMonth[m].toLocaleString()}</td>`).join('')}`;
 
     const totalRow = `<tr class="total-row">
         <td>전체 합계${errorCount ? ` <span style="font-weight:400;color:#e0895c;">(조회실패 ${errorCount}개 제외)</span>` : ''}</td>
         <td></td>
-        <td style="font-weight:400;color:#5c7690;">(${months.length}개월)</td>
+        <td style="font-weight:400;color:#5c7690;">(${months.length}개월)<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">${storeCountTotal}개 매장</span></td>
         ${totalRowMid}
       </tr>`;
 
