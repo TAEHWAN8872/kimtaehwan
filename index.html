@@ -5239,8 +5239,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         });
         months.forEach(m => { totalByMonth[m] += (byMonth[m]||0); });
         yearGroups.forEach(g => {
-          const sum = g.months.reduce((s,m) => s + (byMonth[m]||0), 0);
-          avgByYear[g.year] = g.months.length > 0 ? Math.round(sum / g.months.length) : 0;
+          const validMonths = g.months.filter(m => (byMonth[m]||0) > 0);
+          const sum = validMonths.reduce((s,m) => s + (byMonth[m]||0), 0);
+          avgByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
         });
       }
       return { ...r, isError: false, rowTotal, openDays, avgByYear, cellsHtml };
@@ -5273,8 +5274,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     const avgTotalByYear = {};
     yearGroups.forEach(g => {
-      const sum = g.months.reduce((s,m) => s + (totalByMonth[m]||0), 0);
-      avgTotalByYear[g.year] = g.months.length > 0 ? Math.round(sum / g.months.length) : 0;
+      const validMonths = g.months.filter(m => (totalByMonth[m]||0) > 0);
+      const sum = validMonths.reduce((s,m) => s + (totalByMonth[m]||0), 0);
+      avgTotalByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
     });
     const totalRowMid = isPeriod
       ? `<td>${grandTotal.toLocaleString()}</td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}</td>`).join('')}${dates.map(d => `<td>${totalByDate[d.ymd].toLocaleString()}</td>`).join('')}`
@@ -5949,11 +5951,13 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         return `<td class="${v === 0 ? 'zero' : ''}">${v.toLocaleString()}</td>`;
       }).join('');
       grandTotal += rowTotal;
-      // 평균매출 = 매장 월별 평균매출: 해당 연도에 걸친 개월수로 나눈 값 (영업일수 아님)
+      // 평균매출 = 매장 월별 평균매출: 해당 연도에 걸친 개월수로 나눈 값 (영업일수 아님).
+      // 매출이 0원인 달(예: 25년 1~10월 매출 없음)은 분모(개월수)에서 제외하고 계산
       const avgByYear = {};
       yearGroups.forEach(g => {
-        const sum = g.months.reduce((s,m) => s + (byMonth[m]||0), 0);
-        avgByYear[g.year] = g.months.length > 0 ? Math.round(sum / g.months.length) : 0;
+        const validMonths = g.months.filter(m => (byMonth[m]||0) > 0);
+        const sum = validMonths.reduce((s,m) => s + (byMonth[m]||0), 0);
+        avgByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
       });
       return { ...r, isError: false, rowTotal, openDays, avgByYear, cellsHtml, byMonth };
     });
@@ -5987,8 +5991,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     const avgTotalByYear = {};
     yearGroups.forEach(g => {
-      const sum = g.months.reduce((s,m) => s + (totalByMonth[m]||0), 0);
-      avgTotalByYear[g.year] = g.months.length > 0 ? Math.round(sum / g.months.length) : 0;
+      const validMonths = g.months.filter(m => (totalByMonth[m]||0) > 0);
+      const sum = validMonths.reduce((s,m) => s + (totalByMonth[m]||0), 0);
+      avgTotalByYear[g.year] = validMonths.length > 0 ? Math.round(sum / validMonths.length) : 0;
     });
     const totalRowMid = `<td>${grandTotal.toLocaleString()}</td>${yearGroups.map(g => `<td>${(avgTotalByYear[g.year]||0).toLocaleString()}</td>`).join('')}${months.map(m => `<td>${totalByMonth[m].toLocaleString()}</td>`).join('')}`;
 
