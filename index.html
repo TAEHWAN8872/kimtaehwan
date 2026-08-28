@@ -633,6 +633,21 @@ body.hide-names .store-name:hover{
           <label>종료월</label>
           <input id="livePdEndMonth" type="month" class="live-input">
         </span>
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px;">
+          <input type="checkbox" id="livePdCompareToggle" onchange="window.toggleLivePdCompare()"> 두 기간 비교
+        </label>
+        <span id="livePdCompareDayWrap" style="display:none;">
+          <label>기간B 시작일</label>
+          <input id="livePdStartDate2" type="date" class="live-input">
+          <label>기간B 종료일</label>
+          <input id="livePdEndDate2" type="date" class="live-input">
+        </span>
+        <span id="livePdCompareMonthWrap" style="display:none;">
+          <label>기간B 시작월</label>
+          <input id="livePdStartMonth2" type="month" class="live-input">
+          <label>기간B 종료월</label>
+          <input id="livePdEndMonth2" type="month" class="live-input">
+        </span>
         <button class="live-refresh-btn" onclick="window.loadLivePeriod()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLivePeriodExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePdSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePeriodTable()"
@@ -5072,7 +5087,17 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         eMonthInput.value = eDate ? eDate.slice(0,7) : sMonthInput.value;
       }
     }
+    window.toggleLivePdCompare();
     window.renderLivePeriodTable();
+  };
+
+  // 📅 기간별 매출: "두 기간 비교" 체크박스 on/off 및 일별↔월별 전환 시 기간B 입력창 표시 여부 갱신
+  window.toggleLivePdCompare = function(){
+    const toggle = document.getElementById('livePdCompareToggle');
+    const on = toggle ? toggle.checked : false;
+    const mode = document.getElementById('livePdViewMode').value;
+    document.getElementById('livePdCompareDayWrap').style.display = (on && mode === 'day') ? '' : 'none';
+    document.getElementById('livePdCompareMonthWrap').style.display = (on && mode === 'month') ? '' : 'none';
   };
 
   // 매출정리: 월별/기간별 필터 UI 전환
@@ -5836,10 +5861,23 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
   // ── 📅 기간별 매출: 기간 제한 없이 사용자가 지정한 구간 조회 ──────
   window.__livePdData = null;
+  window.__livePdDataB = null; // "두 기간 비교" 모드에서 기간B 데이터
+
+  // 월 선택 input(yyyy-mm 두 개)을 yyyymmdd 시작/종료로 변환하는 공용 헬퍼
+  function livePdMonthRangeToYmd_(startMonthVal, endMonthVal){
+    const [sy, sm] = startMonthVal.split('-').map(Number);
+    const [ey, em] = endMonthVal.split('-').map(Number);
+    const start = `${sy}${String(sm).padStart(2,'0')}01`;
+    const lastDay = new Date(ey, em, 0).getDate(); // em월의 마지막 날짜
+    const end = `${ey}${String(em).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+    return { start, end };
+  }
 
   window.loadLivePeriod = async function(){
     const viewMode = document.getElementById('livePdViewMode') ? document.getElementById('livePdViewMode').value : 'day';
-    let start, end;
+    const compareToggle = document.getElementById('livePdCompareToggle');
+    const compareOn = compareToggle ? compareToggle.checked : false;
+    let start, end, start2, end2;
     if(viewMode === 'month'){
       const startMonthInput = document.getElementById('livePdStartMonth');
       const endMonthInput = document.getElementById('livePdEndMonth');
@@ -5851,11 +5889,20 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         alert('시작월이 종료월보다 늦을 수 없어요.');
         return;
       }
-      const [sy, sm] = startMonthInput.value.split('-').map(Number);
-      const [ey, em] = endMonthInput.value.split('-').map(Number);
-      start = `${sy}${String(sm).padStart(2,'0')}01`;
-      const lastDay = new Date(ey, em, 0).getDate(); // em월의 마지막 날짜
-      end = `${ey}${String(em).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+      ({ start, end } = livePdMonthRangeToYmd_(startMonthInput.value, endMonthInput.value));
+      if(compareOn){
+        const startMonthInput2 = document.getElementById('livePdStartMonth2');
+        const endMonthInput2 = document.getElementById('livePdEndMonth2');
+        if(!startMonthInput2.value || !endMonthInput2.value){
+          alert('기간B의 시작월과 종료월도 선택해주세요.');
+          return;
+        }
+        if(startMonthInput2.value > endMonthInput2.value){
+          alert('기간B 시작월이 종료월보다 늦을 수 없어요.');
+          return;
+        }
+        ({ start: start2, end: end2 } = livePdMonthRangeToYmd_(startMonthInput2.value, endMonthInput2.value));
+      }
     } else {
       const startInput = document.getElementById('livePdStartDate');
       const endInput = document.getElementById('livePdEndDate');
@@ -5869,6 +5916,20 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         alert('시작일이 종료일보다 늦을 수 없어요.');
         return;
       }
+      if(compareOn){
+        const startInput2 = document.getElementById('livePdStartDate2');
+        const endInput2 = document.getElementById('livePdEndDate2');
+        if(!startInput2.value || !endInput2.value){
+          alert('기간B의 시작일과 종료일도 선택해주세요.');
+          return;
+        }
+        start2 = inputDateToYmd_(startInput2.value);
+        end2 = inputDateToYmd_(endInput2.value);
+        if(start2 > end2){
+          alert('기간B 시작일이 종료일보다 늦을 수 없어요.');
+          return;
+        }
+      }
     }
 
     document.getElementById('livePdLoading').style.display = 'block';
@@ -5876,7 +5937,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     try {
       const data = await fetchLiveDaily_(start, end);
       window.__livePdData = data;
-      document.getElementById('livePdUpdatedAt').textContent = 'OKPOS 동기화: ' + formatSyncTime_(data.CACHED_AT);
+      let syncedAt = 'OKPOS 동기화: ' + formatSyncTime_(data.CACHED_AT);
+      if(compareOn){
+        const data2 = await fetchLiveDaily_(start2, end2);
+        window.__livePdDataB = data2;
+        syncedAt += ` (기간A: ${ymdToInputDate_(start)}~${ymdToInputDate_(end)} / 기간B: ${ymdToInputDate_(start2)}~${ymdToInputDate_(end2)})`;
+      } else {
+        window.__livePdDataB = null;
+      }
+      document.getElementById('livePdUpdatedAt').textContent = syncedAt;
       window.renderLivePeriodTable();
     } catch(err){
       document.getElementById('livePdTableWrap').innerHTML =
@@ -5889,7 +5958,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.renderLivePeriodTable = function(){
     const viewModeSel = document.getElementById('livePdViewMode');
     const viewMode = viewModeSel ? viewModeSel.value : 'day';
-    if(viewMode === 'month'){
+    const compareToggle = document.getElementById('livePdCompareToggle');
+    const compareOn = compareToggle ? compareToggle.checked : false;
+    if(compareOn && window.__livePdDataB){
+      renderLivePeriodCompareTable_(window.__livePdData, window.__livePdDataB, viewMode);
+    } else if(viewMode === 'month'){
       renderLivePeriodMonthlyTable_(window.__livePdData);
     } else {
       renderLiveGenericTable_(window.__livePdData, { wrap:'livePdTableWrap', search:'livePdSearch', managerSel:'livePdManagerSel', mode:'period' });
@@ -5919,6 +5992,196 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       (map[y] = map[y] || []).push(m);
     });
     return Object.keys(map).sort().map(y => ({ year: y, months: map[y] }));
+  }
+
+  // 시작일~종료일(yyyymmdd) 사이의 날짜 목록을 { ymd, wd } 배열로 반환 (renderLiveGenericTable_의 날짜 생성 로직과 동일)
+  function liveDateListInRange_(startYmd, endYmd){
+    const dates = [];
+    const sD = new Date(+startYmd.slice(0,4), +startYmd.slice(4,6)-1, +startYmd.slice(6,8));
+    const eD = new Date(+endYmd.slice(0,4), +endYmd.slice(4,6)-1, +endYmd.slice(6,8));
+    for(let d = new Date(sD); d <= eD; d.setDate(d.getDate()+1)){
+      const ymd = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+      dates.push({ ymd, wd: d.getDay() });
+    }
+    return dates;
+  }
+
+  // ── 📅 기간별 매출: "두 기간 비교" 모드 ────────────────────────────
+  // 기간A·기간B를 같은 표 안에 나란히(오프셋 기준으로 짝지어) 보여준다.
+  // 예: 25.07.01~25.08.20(기간A) vs 26.07.01~26.08.20(기간B) → 1일차 A값 | 1일차 B값, 2일차 A값 | 2일차 B값 ...
+  window.__liveSortState.periodCompare = window.__liveSortState.periodCompare || { key: 'name', dir: 1 };
+
+  function liveCompareSortCompare_(a, b, key){
+    switch(key){
+      case 'manager': return (a.manager||'').localeCompare(b.manager||'', 'ko');
+      case 'totalA': return (a.rowTotalA||0) - (b.rowTotalA||0);
+      case 'totalB': return (a.rowTotalB||0) - (b.rowTotalB||0);
+      case 'diff': {
+        const av = a.diffPct === null ? -Infinity : a.diffPct;
+        const bv = b.diffPct === null ? -Infinity : b.diffPct;
+        return av - bv;
+      }
+      case 'name': default: return (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+  }
+
+  window.liveCompareSortBy = function(key){
+    const st = window.__liveSortState.periodCompare;
+    if(st.key === key){ st.dir *= -1; } else { st.key = key; st.dir = 1; }
+    window.renderLivePeriodTable();
+  };
+
+  function renderLivePeriodCompareTable_(dataA, dataB, viewMode){
+    const wrap = document.getElementById('livePdTableWrap');
+    if(!dataA || !dataB){ wrap.innerHTML = ''; return; }
+    const isMonth = viewMode === 'month';
+    const sortState = window.__liveSortState.periodCompare;
+    const WD = ['일','월','화','수','목','금','토'];
+
+    const unitsA = isMonth ? liveMonthKeysInRange_(dataA.START, dataA.END) : liveDateListInRange_(dataA.START, dataA.END).map(d => d.ymd);
+    const unitsB = isMonth ? liveMonthKeysInRange_(dataB.START, dataB.END) : liveDateListInRange_(dataB.START, dataB.END).map(d => d.ymd);
+    const colCount = Math.max(unitsA.length, unitsB.length);
+
+    const fmtUnit_ = (ymd) => isMonth
+      ? `${ymd.slice(2,4)}년 ${+ymd.slice(4,6)}월`
+      : `${ymd.slice(2,4)}.${ymd.slice(4,6)}.${ymd.slice(6,8)}(${WD[new Date(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8)).getDay()]})`;
+
+    // 매장 목록: 두 기간에 등장한 매장 코드의 합집합. 이름/담당자는 에러가 아닌 쪽 정보를 우선 사용.
+    const codes = new Set([...Object.keys(dataA.STORES||{}), ...Object.keys(dataB.STORES||{})]);
+    let rows = [...codes].map(code => {
+      const infoA = dataA.STORES[code], infoB = dataB.STORES[code];
+      const info = (infoA && !infoA.error) ? infoA : ((infoB && !infoB.error) ? infoB : (infoA || infoB));
+      return { code, name: info.name, manager: (typeof mkStoreManager === 'function') ? mkStoreManager(info.name) : null, infoA, infoB };
+    });
+
+    livePopulateManagerSel('livePdManagerSel', rows);
+    const managerVal = document.getElementById('livePdManagerSel') ? document.getElementById('livePdManagerSel').value : 'all';
+    if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+
+    const q = (document.getElementById('livePdSearch').value || '').trim();
+    if(q) rows = rows.filter(r => (r.name||'').includes(q));
+
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">${q ? `"${q}" 검색 결과가 없어요.` : '표시할 매장 데이터가 없어요.'}</div>`;
+      return;
+    }
+
+    const totalByOffsetA = Array(colCount).fill(0);
+    const totalByOffsetB = Array(colCount).fill(0);
+    const storeCountByOffsetA = Array(colCount).fill(0);
+    const storeCountByOffsetB = Array(colCount).fill(0);
+    let grandTotalA = 0, grandTotalB = 0, errorCount = 0;
+
+    const computed = rows.map(r => {
+      const byUnitA = {}, byUnitB = {};
+      if(r.infoA && !r.infoA.error){
+        (r.infoA.days||[]).forEach(day => {
+          const key = isMonth ? day.SDA_DT.slice(0,6) : day.SDA_DT;
+          byUnitA[key] = (byUnitA[key]||0) + (day.SA_AMT_TTL||0);
+        });
+      }
+      if(r.infoB && !r.infoB.error){
+        (r.infoB.days||[]).forEach(day => {
+          const key = isMonth ? day.SDA_DT.slice(0,6) : day.SDA_DT;
+          byUnitB[key] = (byUnitB[key]||0) + (day.SA_AMT_TTL||0);
+        });
+      }
+      let rowTotalA = 0, rowTotalB = 0;
+      const offsetVals = []; // [ [vA,vB], [vA,vB], ... ] — 화면 렌더와 엑셀 내보내기 공용
+      for(let i = 0; i < colCount; i++){
+        const uA = unitsA[i], uB = unitsB[i];
+        const vA = uA ? (byUnitA[uA]||0) : null;
+        const vB = uB ? (byUnitB[uB]||0) : null;
+        if(vA !== null){ rowTotalA += vA; totalByOffsetA[i] += vA; if(vA > 0) storeCountByOffsetA[i]++; }
+        if(vB !== null){ rowTotalB += vB; totalByOffsetB[i] += vB; if(vB > 0) storeCountByOffsetB[i]++; }
+        offsetVals.push([vA, vB]);
+      }
+      grandTotalA += rowTotalA; grandTotalB += rowTotalB;
+      const isError = (!r.infoA || r.infoA.error) && (!r.infoB || r.infoB.error);
+      if(isError) errorCount++;
+      const diffPct = rowTotalA > 0 ? Math.round((rowTotalB - rowTotalA) / rowTotalA * 1000) / 10 : null;
+      const cellsHtml = offsetVals.map(([vA, vB]) =>
+        `<td class="${vA===0?'zero':''}">${vA===null?'-':vA.toLocaleString()}</td><td class="${vB===0?'zero':''}" style="border-right:1px solid #1c3550;">${vB===null?'-':vB.toLocaleString()}</td>`
+      ).join('');
+      return { ...r, rowTotalA, rowTotalB, diffPct, offsetVals, cellsHtml, isError };
+    });
+
+    computed.sort((a, b) => sortState.dir * liveCompareSortCompare_(a, b, sortState.key));
+
+    const fmtDiff_ = (v) => v === null ? '-' : `${v > 0 ? '+' : ''}${v}%`;
+    const diffColor_ = (v) => v === null ? '#5c7690' : (v > 0 ? '#4fd18b' : (v < 0 ? '#e0895c' : '#8fb8dd'));
+
+    const bodyRows = computed.map(r => {
+      const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
+      if(r.isError){
+        const errColspan = 3 + colCount * 2;
+        return `<tr class="err-row"><td>${r.name}</td>${mgrCell}<td colspan="${errColspan}" style="text-align:left;">⚠ 기간A·기간B 모두 조회 실패</td></tr>`;
+      }
+      const totalACell = `<td class="grand-total">${r.rowTotalA.toLocaleString()}</td>`;
+      const totalBCell = `<td class="grand-total">${r.rowTotalB.toLocaleString()}</td>`;
+      const diffCell = `<td style="color:${diffColor_(r.diffPct)};font-weight:600;">${fmtDiff_(r.diffPct)}</td>`;
+      return `<tr><td>${r.name}</td>${mgrCell}${totalACell}${totalBCell}${diffCell}${r.cellsHtml}</tr>`;
+    }).join('');
+
+    const avgByOffsetA = totalByOffsetA.map((sum, i) => storeCountByOffsetA[i] > 0 ? Math.round(sum / storeCountByOffsetA[i]) : 0);
+    const avgByOffsetB = totalByOffsetB.map((sum, i) => storeCountByOffsetB[i] > 0 ? Math.round(sum / storeCountByOffsetB[i]) : 0);
+    const grandDiffPct = grandTotalA > 0 ? Math.round((grandTotalB - grandTotalA) / grandTotalA * 1000) / 10 : null;
+
+    const totalRow = `<tr class="total-row">
+        <td>전체 합계${errorCount ? ` <span style="font-weight:400;color:#e0895c;">(조회실패 ${errorCount}개 제외)</span>` : ''}</td>
+        <td></td>
+        <td>${grandTotalA.toLocaleString()}</td>
+        <td>${grandTotalB.toLocaleString()}</td>
+        <td style="color:${diffColor_(grandDiffPct)};font-weight:600;">${fmtDiff_(grandDiffPct)}</td>
+        ${totalByOffsetA.map((v,i) => `<td>${v.toLocaleString()}</td><td style="border-right:1px solid #1c3550;">${totalByOffsetB[i].toLocaleString()}</td>`).join('')}
+      </tr>`;
+
+    const avgRow = `<tr class="total-row" style="color:#7eb8e8;">
+        <td>0원 매장 제외 평균매출<br><span style="font-weight:400;font-size:10px;color:#5c7690;">(그 ${isMonth?'달':'날'} 매출 0원인 매장은 빼고 계산)</span></td>
+        <td></td><td></td><td></td><td></td>
+        ${avgByOffsetA.map((v,i) => `<td>${v.toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountByOffsetA[i]}개)</span></td><td style="border-right:1px solid #1c3550;">${avgByOffsetB[i].toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountByOffsetB[i]}개)</span></td>`).join('')}
+      </tr>`;
+
+    const sortTh = (key, label, align = 'right') =>
+      `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveCompareSortBy('${key}')" title="클릭해서 정렬">${label}${sortState.key===key ? (sortState.dir===1?' ▲':' ▼') : ''}</th>`;
+
+    const offsetHeaderCells = [];
+    for(let i = 0; i < colCount; i++){
+      const labelA = unitsA[i] ? fmtUnit_(unitsA[i]) : '-';
+      const labelB = unitsB[i] ? fmtUnit_(unitsB[i]) : '-';
+      offsetHeaderCells.push(`<th style="text-align:right;">${labelA}</th><th style="text-align:right;border-right:1px solid #1c3550;">${labelB}</th>`);
+    }
+
+    // ── 엑셀 다운로드용 데이터 캐시 ──
+    window.__liveExportCache = window.__liveExportCache || {};
+    const offsetHeaderExport = [];
+    for(let i = 0; i < colCount; i++){
+      offsetHeaderExport.push(unitsA[i] ? `${fmtUnit_(unitsA[i])}(A)` : 'A');
+      offsetHeaderExport.push(unitsB[i] ? `${fmtUnit_(unitsB[i])}(B)` : 'B');
+    }
+    const exportHeader = ['매장명','담당자','기간A 합계','기간B 합계','증감률(%)', ...offsetHeaderExport];
+    const exportTotalRow = ['전체 합계','', grandTotalA, grandTotalB, grandDiffPct===null?'':grandDiffPct,
+      ...totalByOffsetA.flatMap((v,i) => [v, totalByOffsetB[i]])];
+    const exportAvgRow = ['0원 매장 제외 평균매출','','','','',
+      ...avgByOffsetA.flatMap((v,i) => [v, avgByOffsetB[i]])];
+    const exportRows = computed.filter(r => !r.isError).map(r =>
+      [r.name, r.manager || '-', r.rowTotalA, r.rowTotalB, r.diffPct===null?'':r.diffPct,
+        ...r.offsetVals.flatMap(([vA,vB]) => [vA===null?'':vA, vB===null?'':vB])]
+    );
+    window.__liveExportCache['period'] = { header: exportHeader, rows: [exportTotalRow, exportAvgRow, ...exportRows] };
+
+    wrap.innerHTML = `
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              ${sortTh('name', `매장명 (${rows.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('totalA','기간A 합계')}${sortTh('totalB','기간B 합계')}${sortTh('diff','증감률')}
+              ${offsetHeaderCells.join('')}
+            </tr></thead>
+            <tbody>${totalRow}${avgRow}${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
   }
 
   // 📅 기간별 매출: 월별 보기 — 선택한 시작일~종료일 안의 각 날짜를 소속 월로 묶어
