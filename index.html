@@ -5920,6 +5920,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     });
     if(computed.some(r => r.isError)) errorCount = computed.filter(r => r.isError).length;
 
+    // 월별 "0원 매장 제외 평균매출": 해당 월 매출이 0인 매장은 분모에서 제외하고 계산
+    const storeCountByMonth = {}; months.forEach(m => storeCountByMonth[m] = 0);
+    computed.forEach(r => {
+      if(r.isError) return;
+      months.forEach(m => { if((r.byMonth[m]||0) > 0) storeCountByMonth[m]++; });
+    });
+    const avgByMonthExclZero = {};
+    months.forEach(m => avgByMonthExclZero[m] = storeCountByMonth[m] > 0 ? Math.round(totalByMonth[m] / storeCountByMonth[m]) : 0);
+
     computed.sort((a, b) => sortState.dir * liveSortCompare_(a, b, sortState.key));
 
     const bodyRows = computed.map(r => {
@@ -5947,6 +5956,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         ${totalRowMid}
       </tr>`;
 
+    const avgRow = `<tr class="total-row" style="color:#7eb8e8;">
+        <td>0원 매장 제외 평균매출<br><span style="font-weight:400;font-size:10px;color:#5c7690;">(그 달 매출 0원인 매장은 빼고 계산)</span></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        ${months.map(m => `<td>${avgByMonthExclZero[m].toLocaleString()}</td>`).join('')}
+      </tr>`;
+
     const sortTh = (key, label, align = 'right') =>
       `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSortBy('period','${key}')" title="클릭해서 정렬">${label}${liveSortArrow_('period', key)}</th>`;
 
@@ -5955,10 +5973,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.__liveExportCache = window.__liveExportCache || {};
     const exportHeader = ['매장명','담당자','영업일수','합계','평균매출', ...months.map(m => `${m.slice(0,4)}-${m.slice(4,6)}`)];
     const exportTotalRow = ['전체 합계','', months.length + '개월', grandTotal, avgTotal, ...months.map(m => totalByMonth[m])];
+    const exportAvgRow = ['0원 매장 제외 평균매출','','','','', ...months.map(m => avgByMonthExclZero[m])];
     const exportRows = computed.filter(r => !r.isError).map(r =>
       [r.name, r.manager || '-', r.openDays, r.rowTotal, r.avgAmt, ...months.map(m => r.byMonth[m] || 0)]
     );
-    window.__liveExportCache['period'] = { header: exportHeader, rows: [exportTotalRow, ...exportRows] };
+    window.__liveExportCache['period'] = { header: exportHeader, rows: [exportTotalRow, exportAvgRow, ...exportRows] };
 
     wrap.innerHTML = `
       <div class="live-table-card">
@@ -5967,7 +5986,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
             <thead><tr>
               ${sortTh('name', nameHeaderLabel, 'center')}${sortTh('manager','담당자','center')}${sortTh('openDays','영업일수')}${headerMid}
             </tr></thead>
-            <tbody>${totalRow}${bodyRows}</tbody>
+            <tbody>${totalRow}${avgRow}${bodyRows}</tbody>
           </table>
         </div>
       </div>`;
