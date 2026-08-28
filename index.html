@@ -5269,14 +5269,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const sortTh = (key, label, align = 'right') =>
       `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSortBy('${ids.mode}','${key}')" title="클릭해서 정렬">${label}${liveSortArrow_(ids.mode, key)}</th>`;
 
+    const avgYearLabel = `${data.START.slice(2,4)}년 `;
     const headerMid = isPeriod
-      ? `${sortTh('total','합계')}${sortTh('avg','평균매출')}${headerCells}`
+      ? `${sortTh('total','합계')}${sortTh('avg', avgYearLabel + '평균매출')}${headerCells}`
       : `${headerCells}${sortTh('total','합계')}`;
 
     // ── 엑셀 다운로드용 데이터 캐시 (화면에 표시된 것과 동일한 필터/정렬 결과) ──
     window.__liveExportCache = window.__liveExportCache || {};
     const exportHeader = isPeriod
-      ? ['매장명','담당자','영업일수','합계','평균매출', ...dates.map(d => `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]})`)]
+      ? ['매장명','담당자','영업일수','합계', avgYearLabel + '평균매출', ...dates.map(d => `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]})`)]
       : ['매장명','담당자','영업일수', ...dates.map(d => `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]})`), '합계'];
     const exportTotalRow = isPeriod
       ? ['전체 합계','', dates.length + '일', grandTotal, avgTotal, ...dates.map(d => totalByDate[d.ymd])]
@@ -5968,10 +5969,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const sortTh = (key, label, align = 'right') =>
       `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSortBy('period','${key}')" title="클릭해서 정렬">${label}${liveSortArrow_('period', key)}</th>`;
 
-    const headerMid = `${sortTh('total','합계')}${sortTh('avg','평균매출')}${headerCells}`;
+    const avgYearLabel = `${data.START.slice(2,4)}년 `;
+    const headerMid = `${sortTh('total','합계')}${sortTh('avg', avgYearLabel + '평균매출')}${headerCells}`;
 
     window.__liveExportCache = window.__liveExportCache || {};
-    const exportHeader = ['매장명','담당자','영업일수','합계','평균매출', ...months.map(m => `${m.slice(0,4)}-${m.slice(4,6)}`)];
+    const exportHeader = ['매장명','담당자','영업일수','합계', avgYearLabel + '평균매출', ...months.map(m => `${m.slice(0,4)}-${m.slice(4,6)}`)];
     const exportTotalRow = ['전체 합계','', months.length + '개월', grandTotal, avgTotal, ...months.map(m => totalByMonth[m])];
     const exportAvgRow = ['0원 매장 제외 평균매출','','','','', ...months.map(m => avgByMonthExclZero[m])];
     const exportRows = computed.filter(r => !r.isError).map(r =>
