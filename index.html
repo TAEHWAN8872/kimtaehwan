@@ -5208,6 +5208,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const yearGroups = isPeriod ? liveGroupMonthsByYear_(months) : [];
 
     const totalByDate = {}; dates.forEach(d => totalByDate[d.ymd] = 0);
+    const storeCountByDate = {}; dates.forEach(d => storeCountByDate[d.ymd] = 0); // 그 날짜에 매출(>0)이 있었던 매장 수
     const totalByMonth = {}; months.forEach(m => totalByMonth[m] = 0);
     let grandTotal = 0;
     let errorCount = 0;
@@ -5225,6 +5226,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         if(v > 0) openDays++;
         rowTotal += v;
         totalByDate[d.ymd] += v;
+        if(v > 0) storeCountByDate[d.ymd]++;
         const cls = [v === 0 ? 'zero' : '', (d.wd === 0 || d.wd === 6) ? 'wknd' : ''].filter(Boolean).join(' ');
         return `<td class="${cls}">${v.toLocaleString()}</td>`;
       }).join('');
@@ -5289,6 +5291,19 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         ${totalRowMid}
       </tr>`;
 
+    // 일별 "0원 매장 제외 평균매출": 그 날짜에 매출이 0원인 매장은 분모에서 빼고 계산 (월별 보기와 동일한 방식)
+    const avgByDate = {};
+    dates.forEach(d => { avgByDate[d.ymd] = storeCountByDate[d.ymd] > 0 ? Math.round(totalByDate[d.ymd] / storeCountByDate[d.ymd]) : 0; });
+    // 합계/평균매출(연도별) 칸 수만큼 빈 칸을 채워야 날짜별 컬럼과 줄이 맞음 (합계 1 + 연도별 평균 N)
+    const avgRowBlanks = isPeriod ? Array(1 + yearGroups.length).fill('<td></td>').join('') : '';
+    const avgRow = isPeriod ? `<tr class="total-row" style="color:#7eb8e8;">
+        <td>0원 매장 제외 평균매출<br><span style="font-weight:400;font-size:10px;color:#5c7690;">(그 날 매출 0원인 매장은 빼고 계산)</span></td>
+        <td></td>
+        <td></td>
+        ${avgRowBlanks}
+        ${dates.map(d => `<td>${avgByDate[d.ymd].toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountByDate[d.ymd]}개)</span></td>`).join('')}
+      </tr>` : '';
+
     // 정렬 가능한 헤더: 클릭하면 liveSortBy(mode, key) 호출, 현재 정렬 컬럼엔 ▲/▼ 표시
     // align: 텍스트 컬럼(매장명/담당자)은 'center', 숫자 컬럼(합계/평균매출/영업일수)은 'right'로 데이터와 일직선 맞춤
     const sortTh = (key, label, align = 'right') =>
@@ -5307,6 +5322,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const exportTotalRow = isPeriod
       ? ['전체 합계','', dates.length + '일', grandTotal, ...yearGroups.map(g => avgTotalByYear[g.year]||0), ...dates.map(d => totalByDate[d.ymd])]
       : ['전체 합계','', '', ...dates.map(d => totalByDate[d.ymd]), grandTotal];
+    const exportAvgRow = isPeriod
+      ? ['0원 매장 제외 평균매출', ...Array(2 + 1 + yearGroups.length).fill(''), ...dates.map(d => avgByDate[d.ymd])]
+      : null;
     const exportRows = computed.filter(r => !r.isError).map(r => {
       const byDate = {};
       (r.days||[]).forEach(day => { byDate[day.SDA_DT] = day.SA_AMT_TTL || 0; });
@@ -5315,7 +5333,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         ? [r.name, r.manager || '-', r.openDays, r.rowTotal, ...yearGroups.map(g => r.avgByYear[g.year]||0), ...dateVals]
         : [r.name, r.manager || '-', r.openDays, ...dateVals, r.rowTotal];
     });
-    window.__liveExportCache[ids.mode] = { header: exportHeader, rows: [exportTotalRow, ...exportRows] };
+    window.__liveExportCache[ids.mode] = { header: exportHeader, rows: isPeriod ? [exportTotalRow, exportAvgRow, ...exportRows] : [exportTotalRow, ...exportRows] };
 
     wrap.innerHTML = `
       <div class="live-table-card">
@@ -5324,7 +5342,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
             <thead><tr>
               ${sortTh('name', nameHeaderLabel, 'center')}${sortTh('manager','담당자','center')}${sortTh('openDays','영업일수')}${headerMid}
             </tr></thead>
-            <tbody>${totalRow}${bodyRows}</tbody>
+            <tbody>${totalRow}${avgRow}${bodyRows}</tbody>
           </table>
         </div>
       </div>`;
