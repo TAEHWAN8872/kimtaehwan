@@ -620,6 +620,11 @@ body.hide-names .store-name:hover{
         <input id="livePdStartDate" type="date" class="live-input">
         <label>종료일</label>
         <input id="livePdEndDate" type="date" class="live-input">
+        <label>보기</label>
+        <select id="livePdViewMode" class="live-input" onchange="window.renderLivePeriodTable()">
+          <option value="day">일별</option>
+          <option value="month">월별</option>
+        </select>
         <button class="live-refresh-btn" onclick="window.loadLivePeriod()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLivePeriodExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePdSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePeriodTable()"
@@ -5789,8 +5794,135 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   };
 
   window.renderLivePeriodTable = function(){
-    renderLiveGenericTable_(window.__livePdData, { wrap:'livePdTableWrap', search:'livePdSearch', managerSel:'livePdManagerSel', mode:'period' });
+    const viewModeSel = document.getElementById('livePdViewMode');
+    const viewMode = viewModeSel ? viewModeSel.value : 'day';
+    if(viewMode === 'month'){
+      renderLivePeriodMonthlyTable_(window.__livePdData);
+    } else {
+      renderLiveGenericTable_(window.__livePdData, { wrap:'livePdTableWrap', search:'livePdSearch', managerSel:'livePdManagerSel', mode:'period' });
+    }
   };
+
+  // 시작일~종료일(yyyymmdd) 사이에 걸친 연월(yyyymm) 목록을 순서대로 반환.
+  // 예: 20260101~20260815 → ['202601','202602',...,'202608']
+  function liveMonthKeysInRange_(startYmd, endYmd){
+    const months = [];
+    let y = +startYmd.slice(0,4), m = +startYmd.slice(4,6);
+    const endY = +endYmd.slice(0,4), endM = +endYmd.slice(4,6);
+    while(y < endY || (y === endY && m <= endM)){
+      months.push(`${y}${String(m).padStart(2,'0')}`);
+      m++;
+      if(m > 12){ m = 1; y++; }
+    }
+    return months;
+  }
+
+  // 📅 기간별 매출: 월별 보기 — 선택한 시작일~종료일 안의 각 날짜를 소속 월로 묶어
+  // 월별 매출 합계 컬럼으로 보여준다 (예: 26년 1월~8월 조회 시 1월~8월 컬럼이 나란히 표시됨)
+  function renderLivePeriodMonthlyTable_(data){
+    const wrap = document.getElementById('livePdTableWrap');
+    if(!data){ wrap.innerHTML = ''; return; }
+    const sortState = window.__liveSortState.period || { key: 'name', dir: 1 };
+    const months = liveMonthKeysInRange_(data.START, data.END);
+
+    let rows = Object.entries(data.STORES).map(([code, info]) => ({
+      code, ...info,
+      manager: (typeof mkStoreManager === 'function') ? mkStoreManager(info.name) : null
+    }));
+
+    livePopulateManagerSel('livePdManagerSel', rows);
+    const managerVal = document.getElementById('livePdManagerSel') ? document.getElementById('livePdManagerSel').value : 'all';
+    if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+
+    const q = (document.getElementById('livePdSearch').value || '').trim();
+    if(q) rows = rows.filter(r => (r.name||'').includes(q));
+
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">${q ? `"${q}" 검색 결과가 없어요.` : '표시할 매장 데이터가 없어요.'}</div>`;
+      return;
+    }
+
+    const totalByMonth = {}; months.forEach(m => totalByMonth[m] = 0);
+    let grandTotal = 0;
+    let errorCount = 0;
+    let totalOpenDays = 0;
+
+    const computed = rows.map(r => {
+      if(r.error) return { ...r, isError: true, rowTotal: 0, openDays: 0, avgAmt: 0, cellsHtml: '', byMonth: {} };
+      const byMonth = {}; months.forEach(m => byMonth[m] = 0);
+      let openDays = 0;
+      (r.days||[]).forEach(day => {
+        const ym = day.SDA_DT.slice(0,6);
+        const amt = day.SA_AMT_TTL || 0;
+        if(byMonth[ym] !== undefined) byMonth[ym] += amt;
+        if(amt > 0) openDays++;
+      });
+      let rowTotal = 0;
+      const cellsHtml = months.map(m => {
+        const v = byMonth[m] || 0;
+        rowTotal += v;
+        totalByMonth[m] += v;
+        return `<td class="${v === 0 ? 'zero' : ''}">${v.toLocaleString()}</td>`;
+      }).join('');
+      grandTotal += rowTotal;
+      totalOpenDays += openDays;
+      const avgAmt = openDays > 0 ? Math.round(rowTotal / openDays) : 0;
+      return { ...r, isError: false, rowTotal, openDays, avgAmt, cellsHtml, byMonth };
+    });
+    if(computed.some(r => r.isError)) errorCount = computed.filter(r => r.isError).length;
+
+    computed.sort((a, b) => sortState.dir * liveSortCompare_(a, b, sortState.key));
+
+    const bodyRows = computed.map(r => {
+      const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
+      if(r.isError){
+        const errColspan = months.length + 2;
+        return `<tr class="err-row"><td>${r.name}</td>${mgrCell}<td>-</td><td colspan="${errColspan}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+      }
+      const openDaysCell = `<td style="color:#8fb8dd;">${r.openDays}일</td>`;
+      const totalCell = `<td class="grand-total">${r.rowTotal.toLocaleString()}</td>`;
+      const avgCell = `<td>${r.avgAmt.toLocaleString()}</td>`;
+      return `<tr><td>${r.name}</td>${mgrCell}${openDaysCell}${totalCell}${avgCell}${r.cellsHtml}</tr>`;
+    }).join('');
+
+    const headerCells = months.map(m => `<th style="text-align:right;">${m.slice(0,4)}년 ${+m.slice(4,6)}월</th>`).join('');
+    const nameHeaderLabel = `매장명 (${rows.length}개)`;
+
+    const avgTotal = totalOpenDays > 0 ? Math.round(grandTotal / totalOpenDays) : 0;
+    const totalRowMid = `<td>${grandTotal.toLocaleString()}</td><td>${avgTotal.toLocaleString()}</td>${months.map(m => `<td>${totalByMonth[m].toLocaleString()}</td>`).join('')}`;
+
+    const totalRow = `<tr class="total-row">
+        <td>전체 합계${errorCount ? ` <span style="font-weight:400;color:#e0895c;">(조회실패 ${errorCount}개 제외)</span>` : ''}</td>
+        <td></td>
+        <td style="font-weight:400;color:#5c7690;">(${months.length}개월)</td>
+        ${totalRowMid}
+      </tr>`;
+
+    const sortTh = (key, label, align = 'right') =>
+      `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSortBy('period','${key}')" title="클릭해서 정렬">${label}${liveSortArrow_('period', key)}</th>`;
+
+    const headerMid = `${sortTh('total','합계')}${sortTh('avg','평균매출')}${headerCells}`;
+
+    window.__liveExportCache = window.__liveExportCache || {};
+    const exportHeader = ['매장명','담당자','영업일수','합계','평균매출', ...months.map(m => `${m.slice(0,4)}-${m.slice(4,6)}`)];
+    const exportTotalRow = ['전체 합계','', months.length + '개월', grandTotal, avgTotal, ...months.map(m => totalByMonth[m])];
+    const exportRows = computed.filter(r => !r.isError).map(r =>
+      [r.name, r.manager || '-', r.openDays, r.rowTotal, r.avgAmt, ...months.map(m => r.byMonth[m] || 0)]
+    );
+    window.__liveExportCache['period'] = { header: exportHeader, rows: [exportTotalRow, ...exportRows] };
+
+    wrap.innerHTML = `
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              ${sortTh('name', nameHeaderLabel, 'center')}${sortTh('manager','담당자','center')}${sortTh('openDays','영업일수')}${headerMid}
+            </tr></thead>
+            <tbody>${totalRow}${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
 
   // ── 🏷️ 상품별 매출: 기간 + 상품명 검색으로 매장별 판매 내역(수량/금액) 조회 ──
   // data/product-daily.json은 [날짜, 상품명, 수량, 금액] 압축 배열로 저장되어 있음(FORMAT 필드 참고)
