@@ -5962,7 +5962,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         <td></td>
         <td></td>
         <td></td>
-        ${months.map(m => `<td>${avgByMonthExclZero[m].toLocaleString()}</td>`).join('')}
+        ${months.map(m => `<td>${avgByMonthExclZero[m].toLocaleString()}<br><span style="font-weight:400;font-size:10px;color:#e0a45c;">(${storeCountByMonth[m]}개)</span></td>`).join('')}
       </tr>`;
 
     const sortTh = (key, label, align = 'right') =>
