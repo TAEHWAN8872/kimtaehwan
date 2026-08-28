@@ -616,15 +616,23 @@ body.hide-names .store-name:hover{
     <!-- 📅 기간별 매출: 기간 제한 없이 임의 구간 조회 -->
     <div id="livePeriodSection" style="display:none;">
       <div class="live-toolbar">
-        <label>시작일</label>
-        <input id="livePdStartDate" type="date" class="live-input">
-        <label>종료일</label>
-        <input id="livePdEndDate" type="date" class="live-input">
         <label>보기</label>
-        <select id="livePdViewMode" class="live-input" onchange="window.renderLivePeriodTable()">
+        <select id="livePdViewMode" class="live-input" onchange="window.switchLivePdViewMode()">
           <option value="day">일별</option>
           <option value="month">월별</option>
         </select>
+        <span id="livePdDayWrap">
+          <label>시작일</label>
+          <input id="livePdStartDate" type="date" class="live-input">
+          <label>종료일</label>
+          <input id="livePdEndDate" type="date" class="live-input">
+        </span>
+        <span id="livePdMonthWrap" style="display:none;">
+          <label>시작월</label>
+          <input id="livePdStartMonth" type="month" class="live-input">
+          <label>종료월</label>
+          <input id="livePdEndMonth" type="month" class="live-input">
+        </span>
         <button class="live-refresh-btn" onclick="window.loadLivePeriod()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLivePeriodExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePdSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePeriodTable()"
@@ -5046,6 +5054,27 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
   };
 
+  // 📅 기간별 매출: 일별/월별 보기 UI 전환 (시작일·종료일 ↔ 시작월·종료월)
+  window.switchLivePdViewMode = function(){
+    const mode = document.getElementById('livePdViewMode').value;
+    document.getElementById('livePdDayWrap').style.display = (mode === 'day') ? '' : 'none';
+    document.getElementById('livePdMonthWrap').style.display = (mode === 'month') ? '' : 'none';
+    if(mode === 'month'){
+      const sMonthInput = document.getElementById('livePdStartMonth');
+      const eMonthInput = document.getElementById('livePdEndMonth');
+      if(!sMonthInput.value){
+        const sDate = document.getElementById('livePdStartDate').value;
+        const now = new Date();
+        sMonthInput.value = sDate ? sDate.slice(0,7) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      }
+      if(!eMonthInput.value){
+        const eDate = document.getElementById('livePdEndDate').value;
+        eMonthInput.value = eDate ? eDate.slice(0,7) : sMonthInput.value;
+      }
+    }
+    window.renderLivePeriodTable();
+  };
+
   // 매출정리: 월별/기간별 필터 UI 전환
   window.switchLiveSmFilterType = function(){
     const val = document.getElementById('liveSmFilterType').value;
@@ -5765,17 +5794,37 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.__livePdData = null;
 
   window.loadLivePeriod = async function(){
-    const startInput = document.getElementById('livePdStartDate');
-    const endInput = document.getElementById('livePdEndDate');
-    if(!startInput.value || !endInput.value){
-      alert('시작일과 종료일을 모두 선택해주세요.');
-      return;
-    }
-    const start = inputDateToYmd_(startInput.value);
-    const end = inputDateToYmd_(endInput.value);
-    if(start > end){
-      alert('시작일이 종료일보다 늦을 수 없어요.');
-      return;
+    const viewMode = document.getElementById('livePdViewMode') ? document.getElementById('livePdViewMode').value : 'day';
+    let start, end;
+    if(viewMode === 'month'){
+      const startMonthInput = document.getElementById('livePdStartMonth');
+      const endMonthInput = document.getElementById('livePdEndMonth');
+      if(!startMonthInput.value || !endMonthInput.value){
+        alert('시작월과 종료월을 모두 선택해주세요.');
+        return;
+      }
+      if(startMonthInput.value > endMonthInput.value){
+        alert('시작월이 종료월보다 늦을 수 없어요.');
+        return;
+      }
+      const [sy, sm] = startMonthInput.value.split('-').map(Number);
+      const [ey, em] = endMonthInput.value.split('-').map(Number);
+      start = `${sy}${String(sm).padStart(2,'0')}01`;
+      const lastDay = new Date(ey, em, 0).getDate(); // em월의 마지막 날짜
+      end = `${ey}${String(em).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+    } else {
+      const startInput = document.getElementById('livePdStartDate');
+      const endInput = document.getElementById('livePdEndDate');
+      if(!startInput.value || !endInput.value){
+        alert('시작일과 종료일을 모두 선택해주세요.');
+        return;
+      }
+      start = inputDateToYmd_(startInput.value);
+      end = inputDateToYmd_(endInput.value);
+      if(start > end){
+        alert('시작일이 종료일보다 늦을 수 없어요.');
+        return;
+      }
     }
 
     document.getElementById('livePdLoading').style.display = 'block';
