@@ -1,7 +1,6 @@
 name: tpay 매출 데이터 동기화
 on:
   schedule:
-    - cron: '*/10 * * * *'
     - cron: '0 18 * * *'   # 매일 KST 03:00(UTC 18:00) — 상품분류 매핑은 자주 안 바뀌므로 하루 1번만
   workflow_dispatch:
     inputs:
