@@ -626,6 +626,7 @@ module.exports = {
   fetchOneStoreRange,
   fetchOneStoreRealtime,
   fetchOneStoreRealtimeWithOrders,
+  aggregateOrdersToDays,
   aggregateOrdersToChannelDays,
   fetchOneStoreProducts,
   fetchOneStoreProductsRange,
