@@ -1,10 +1,19 @@
 // scripts/daily-update.js
-// 매번(예: 10분마다) 실행되는 스크립트. "오늘" 하루치만 다시 받아서
+// 매번(예: 2시간마다) 실행되는 스크립트. "오늘" 하루치만 다시 받아서
 // 기존 data/live-daily.json에 병합합니다. 과거 날짜는 이미 저장된 값을
 // 그대로 유지하므로 매번 155개 매장 x 1일치만 호출 -> 빠르고 가볍습니다.
 //
-// 실패한 매장은 이번 회차 데이터로 덮어쓰지 않고 "직전 성공값"을 그대로
-// 유지합니다 (매출 0원과 조회 실패가 섞이지 않도록).
+// [2026-08-31 변경: 누적 병합 방식으로 전환]
+// tpay REQ_CODE 3/6이 같은 요청에도 시점에 따라 일부 주문을 누락해서 응답하는
+// 현상이 실측으로 확인됨(BHD053/2026-08-27, 동일 파라미터로 45건 vs 0건).
+// 예전 방식은 "이번 호출 결과로 오늘자를 통째로 덮어쓰기"였기 때문에, 어느 한
+// 번의 호출이 몇 건을 놓치면 그 주문이 최종 데이터에서 그대로 사라지는 문제가
+// 있었다. 이제는 stores[code].todayRaw.ordersByNo / itemsByNo에 SA_NO를 키로
+// 오늘 하루 동안의 모든 호출 결과를 계속 누적 병합한다. 즉 하루 안에 단 한
+// 번이라도 어떤 주문이 잡히면, 이후 호출이 그 주문을 놓치더라도 최종 데이터에는
+// 계속 남는다. 같은 SA_NO가 다시 잡히면 최신 값으로 덮어써서 취소 처리
+// (SA_DEL_MK 변경) 등은 정상 반영된다. 날짜가 바뀌면(todayRaw.date !== today)
+// 누적을 초기화한다.
 //
 // [실시간 소스] "오늘"은 REQ_CODE 4(일정산매출, 정산 배치가 끝나야 채워짐) 대신
 // fetchOneStoreRealtime()으로 REQ_CODE 3(매출정보 마스터, 주문 건별 원본)을 조회해서
@@ -22,6 +31,8 @@
 // 그룹으로 뭉개져 버립니다. 따라서 매칭은 SA_NO 필드로 직접 그룹핑합니다
 // (과거에 썼던 "SA_NO % 100 = SC_NO" 방식은 틀린 가정이었음, 폐기).
 // 주문이 없는 매장은 이 호출을 건너뛰어 API 부하를 줄입니다.
+// 품목상세도 REQ_CODE 3과 마찬가지로 누락 가능성이 있으므로 todayRaw.itemsByNo에
+// SA_NO 기준으로 누적 병합한다(이번 호출에서 못 받은 SA_NO는 이전에 캐시된 값 유지).
 
 const fs = require('fs');
 const path = require('path');
@@ -30,6 +41,7 @@ const {
   sleep,
   fetchOneStoreRealtimeWithOrders,
   fetchOneStoreOrderDetail,
+  aggregateOrdersToDays,
   aggregateOrdersToChannelDays,
 } = require('./lib');
 
@@ -99,6 +111,18 @@ function loadExisting() {
   }
 }
 
+// 날짜가 바뀌었으면 초기화, 같은 날이면 기존 누적값 재사용
+function loadTodayRaw_(prev, today) {
+  if (prev && prev.todayRaw && prev.todayRaw.date === today) {
+    return {
+      date: today,
+      ordersByNo: { ...(prev.todayRaw.ordersByNo || {}) },
+      itemsByNo: { ...(prev.todayRaw.itemsByNo || {}) },
+    };
+  }
+  return { date: today, ordersByNo: {}, itemsByNo: {} };
+}
+
 async function main() {
   const token = process.env.TPAY_TOKEN;
   if (!token) throw new Error('TPAY_TOKEN 환경변수가 없습니다.');
@@ -108,62 +132,82 @@ async function main() {
   const existing = loadExisting();
   const prevStores = existing.STORES || {};
 
-  console.log(`일일 갱신 시작: ${today}, 매장 ${storeMap.length}개`);
+  console.log(`일일 갱신 시작(누적 병합): ${today}, 매장 ${storeMap.length}개`);
 
   const stores = { ...prevStores };
   const failed = [];
   let successCount = 0;
   let itemFetchFailedCount = 0;
   let itemFetchOkCount = 0;
+  let newOrderCount = 0; // 이번 회차에서 새로 잡히거나 갱신된 주문 수(진단용)
   const itemFetchErrors = []; // 진단용: 어떤 매장에서 왜 실패했는지 (최대 10개만 기록)
   const allOrders = []; // 오늘자 전 매장 영수증(주문) 원본 — 일판매 매출 탭용
 
   for (let i = 0; i < storeMap.length; i++) {
     const [name, code] = storeMap[i];
+    const prev = stores[code] || { name, days: [] };
+    const todayRaw = loadTodayRaw_(prev, today);
+
     const result = await fetchOneStoreRealtimeWithOrders(token, code, today);
 
     if (result.error) {
+      // 이번 회차 호출 자체가 실패 — 기존 누적값(todayRaw 포함)은 그대로 유지.
       failed.push(`${code}(${name}): ${result.error}`);
-      // 실패 시 기존 값 유지 (없으면 error 상태로 최초 기록)
       if (!stores[code]) stores[code] = { name, error: result.error };
+      // 실패해도 todayRaw는 최소한 저장해둬서 다음 회차가 이어받을 수 있게 함
+      if (stores[code] && !stores[code].todayRaw) stores[code].todayRaw = todayRaw;
     } else {
-      const prev = stores[code] || { name, days: [] };
+      // 이번 회차에서 받은 주문을 SA_NO 기준으로 누적 병합 (같은 SA_NO는 최신 값으로 갱신)
+      for (const o of result.orders) {
+        const key = String(o.SA_NO);
+        if (!todayRaw.ordersByNo[key]) newOrderCount++;
+        todayRaw.ordersByNo[key] = o;
+      }
+
+      const mergedOrders = Object.values(todayRaw.ordersByNo);
+
+      // 오늘자 일별 합계(days)는 "이번 회차 결과"가 아니라 "지금까지 누적된 전체"로 계산
+      let daysToday = aggregateOrdersToDays(mergedOrders).filter((d) => d.SDA_DT === today);
+      if (daysToday.length === 0) {
+        // 주문이 아예 없으면(오늘 첫 회차 등) 0원 상태를 명시적으로 채워서 반환
+        const zero = { SDA_DT: today, STR_NO: code, STR_NM: name };
+        daysToday = [zero];
+      }
+
+      // 채널별 매출도 누적된 전체 주문 기준으로 재계산
+      const channelToday = aggregateOrdersToChannelDays(mergedOrders);
+
       const prevDays = (prev.days || []).filter((d) => d.SDA_DT !== today);
-      // 오늘자 채널별(배민/쿠팡이츠 등) 매출 — result.orders는 REQ_CODE 3 원본이라
-      // 이미 fetchOneStoreRealtimeWithOrders 호출 한 번으로 얻어져 있음 (API 호출 추가 없음).
-      // 과거 날짜의 channelDays는 그대로 두고 오늘자만 교체한다.
-      const channelToday = aggregateOrdersToChannelDays(result.orders);
       stores[code] = {
         name,
-        days: [...prevDays, ...result.days],
+        days: [...prevDays, ...daysToday],
         channelDays: {
           ...(prev.channelDays || {}),
           ...(channelToday[today] ? { [today]: channelToday[today] } : {}),
         },
+        todayRaw, // 다음 회차가 이어받을 수 있도록 그대로 저장
       };
       successCount++;
 
       // 오늘 주문이 있는 매장만 품목 상세(REQ_CODE 6)를 추가로 조회 (불필요한 API 호출 절약)
-      let itemsByNo = {};
       if (result.orders.length > 0) {
         const detail = await fetchOneStoreOrderDetail(token, code, today);
         if (detail.error) {
-          itemFetchFailedCount++; // 품목상세만 실패 — 주문 자체(금액 등)는 그대로 살림
+          itemFetchFailedCount++; // 품목상세만 실패 — 이전 회차에 캐시된 값(있다면) 그대로 사용
           if (itemFetchErrors.length < 10) {
             itemFetchErrors.push(`${code}(${name}): ${detail.error}`);
           }
         } else {
-          itemsByNo = groupItemsBySaNo_(detail.rows);
-          const matchedCount = result.orders.filter(
-            (o) => itemsByNo[String(o.SA_NO)]
+          const itemsByNo = groupItemsBySaNo_(detail.rows);
+          // 이번 회차에서 받은 품목만 캐시에 병합 (못 받은 SA_NO는 이전 캐시 유지)
+          Object.assign(todayRaw.itemsByNo, itemsByNo);
+
+          const matchedCount = mergedOrders.filter(
+            (o) => todayRaw.itemsByNo[String(o.SA_NO)]
           ).length;
           if (matchedCount === 0 && detail.rows.length > 0 && itemFetchErrors.length < 10) {
-            // 응답은 성공했는데 REQ_CODE 3 주문의 SA_NO와 REQ_CODE 6 라인의 SA_NO가
-            // 하나도 안 맞은 경우 — API 응답 형식이 예상과 달라졌을 수 있음
             itemFetchErrors.push(
-              `${code}(${name}): 매칭 0건 (라인 ${detail.rows.length}건, 주문 ${result.orders.length}건, ` +
-              `주문 SA_NO 예시=${result.orders.slice(0, 3).map((o) => o.SA_NO).join(',')}, ` +
-              `라인 SA_NO 예시=${detail.rows.slice(0, 3).map((r) => r.SA_NO).join(',')})`
+              `${code}(${name}): 매칭 0건 (라인 ${detail.rows.length}건, 주문 ${mergedOrders.length}건)`
             );
           } else if (matchedCount > 0) {
             itemFetchOkCount++;
@@ -171,8 +215,9 @@ async function main() {
         }
       }
 
-      for (const o of result.orders) {
-        const items = itemsByNo[String(o.SA_NO)];
+      // 영수증(일판매 매출) 탭용: 누적된 전체 주문 + 캐시된 품목 상세 기준으로 구성
+      for (const o of mergedOrders) {
+        const items = todayRaw.itemsByNo[String(o.SA_NO)];
         allOrders.push(trimOrder_(o, validateItems_(o, items, itemFetchErrors)));
       }
     }
@@ -202,7 +247,10 @@ async function main() {
   };
   fs.writeFileSync(RECEIPT_PATH, JSON.stringify(receiptOutput));
 
-  console.log(`갱신 완료: 성공 ${successCount}개 / 실패 ${failed.length}개 / 영수증 ${allOrders.length}건 / 품목상세 매칭성공 ${itemFetchOkCount}개 / 품목상세 실패 ${itemFetchFailedCount}개`);
+  console.log(
+    `갱신 완료: 성공 ${successCount}개 / 실패 ${failed.length}개 / 이번 회차 신규·갱신 주문 ${newOrderCount}건 / ` +
+    `영수증 ${allOrders.length}건 / 품목상세 매칭성공 ${itemFetchOkCount}개 / 품목상세 실패 ${itemFetchFailedCount}개`
+  );
   if (failed.length) console.log('실패 매장:\n' + failed.join('\n'));
   if (itemFetchErrors.length) console.log('품목상세 실패/매칭0건 상세(최대10개):\n' + itemFetchErrors.join('\n'));
 }
