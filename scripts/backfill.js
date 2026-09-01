@@ -40,7 +40,12 @@ async function main() {
 
   const storeMap = JSON.parse(fs.readFileSync(STORE_MAP_PATH, 'utf8')); // [[name, code], ...]
 
-  const end = kstDateString(0);
+  // [2026-09-01 수정] "오늘"은 REQ_CODE 4(정산 확정매출)가 아직 정산 전이라
+  // 비어있거나 응답에 아예 없음. end를 오늘로 두면 keptDays 필터(SDA_DT > end
+  // 조건에서 오늘은 제외됨)와 맞물려, daily-update.js가 실시간으로 쌓아둔
+  // "오늘" days 항목이 빈 값으로 덮어써져 사라지는 버그가 있었다. 백필은
+  // 어제까지만 대상으로 하고, 오늘은 daily-update.js가 전담하도록 제외한다.
+  const end = kstDateString(-1);
   const start = kstDateString(-ROLLING_DAYS);
 
   const existing = loadExisting();
