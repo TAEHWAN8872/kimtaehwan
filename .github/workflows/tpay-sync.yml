@@ -21,6 +21,7 @@ on:
           - compare
           - product-compare
           - debug-channel-fields
+          - debug-settled-channel-fields
       rolling_days:
         description: 'backfill 모드일 때 조회할 일수'
         required: false
@@ -67,6 +68,14 @@ on:
         default: ''
       debug_store_names:
         description: 'debug-order 모드일 때 매장명 여러 개 지정 (콤마구분, 비워두면 debug_shop_no 1개만 사용)'
+        required: false
+        default: ''
+      debug_settled_start:
+        description: 'debug-settled-channel-fields 모드일 때 시작일 (yyyymmdd)'
+        required: false
+        default: ''
+      debug_settled_end:
+        description: 'debug-settled-channel-fields 모드일 때 종료일 (yyyymmdd, 비우면 시작일과 동일)'
         required: false
         default: ''
 permissions:
@@ -170,8 +179,16 @@ jobs:
           DEBUG_SHOP_NO: ${{ github.event.inputs.debug_shop_no }}
           DEBUG_DATE: ${{ github.event.inputs.debug_date }}
         run: node scripts/debug-channel-fields.js
+      - name: 정산확정 채널 필드 진단 실행 (수동-debug-settled-channel-fields, REQ_CODE 4 원본에 채널필드 있는지 확인용)
+        if: github.event.inputs.mode == 'debug-settled-channel-fields'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          DEBUG_SHOP_NO: ${{ github.event.inputs.debug_shop_no }}
+          DEBUG_START: ${{ github.event.inputs.debug_settled_start }}
+          DEBUG_END: ${{ github.event.inputs.debug_settled_end }}
+        run: node scripts/debug-settled-channel-fields.js
       - name: 변경사항 커밋 & 푸시
-        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare' && github.event.inputs.mode != 'debug-channel-fields'
+        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare' && github.event.inputs.mode != 'debug-channel-fields' && github.event.inputs.mode != 'debug-settled-channel-fields'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
