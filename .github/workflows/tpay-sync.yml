@@ -22,6 +22,7 @@ on:
           - product-compare
           - debug-channel-fields
           - debug-settled-channel-fields
+          - debug-settled-channel-filter
       rolling_days:
         description: 'backfill 모드일 때 조회할 일수'
         required: false
@@ -75,7 +76,15 @@ on:
         required: false
         default: ''
       debug_settled_end:
-        description: 'debug-settled-channel-fields 모드일 때 종료일 (yyyymmdd, 비우면 시작일과 동일)'
+        description: 'debug-settled-channel-fields/debug-settled-channel-filter 모드일 때 종료일 (yyyymmdd, 비우면 시작일과 동일)'
+        required: false
+        default: ''
+      debug_ifsa_tp:
+        description: 'debug-settled-channel-filter 모드일 때 필터할 IFSA_TP 코드 (예: OKB, 비우면 필터 없이 baseline 조회)'
+        required: false
+        default: ''
+      debug_sda_tp:
+        description: 'debug-settled-channel-filter 모드일 때 필터할 SDA_TP 값 (예: IFS, 필요할 때만)'
         required: false
         default: ''
 permissions:
@@ -187,8 +196,18 @@ jobs:
           DEBUG_START: ${{ github.event.inputs.debug_settled_start }}
           DEBUG_END: ${{ github.event.inputs.debug_settled_end }}
         run: node scripts/debug-settled-channel-fields.js
+      - name: 정산확정 채널 필터 진단 실행 (수동-debug-settled-channel-filter, REQ_CODE 4에 IFSA_TP 필터가 실제로 먹히는지 확인용)
+        if: github.event.inputs.mode == 'debug-settled-channel-filter'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          DEBUG_SHOP_NO: ${{ github.event.inputs.debug_shop_no }}
+          DEBUG_START: ${{ github.event.inputs.debug_settled_start }}
+          DEBUG_END: ${{ github.event.inputs.debug_settled_end }}
+          DEBUG_IFSA_TP: ${{ github.event.inputs.debug_ifsa_tp }}
+          DEBUG_SDA_TP: ${{ github.event.inputs.debug_sda_tp }}
+        run: node scripts/debug-settled-channel-filter.js
       - name: 변경사항 커밋 & 푸시
-        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare' && github.event.inputs.mode != 'debug-channel-fields' && github.event.inputs.mode != 'debug-settled-channel-fields'
+        if: github.event.inputs.mode != 'debug' && github.event.inputs.mode != 'debug-order' && github.event.inputs.mode != 'compare' && github.event.inputs.mode != 'product-compare' && github.event.inputs.mode != 'debug-channel-fields' && github.event.inputs.mode != 'debug-settled-channel-fields' && github.event.inputs.mode != 'debug-settled-channel-filter'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
