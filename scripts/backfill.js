@@ -64,7 +64,7 @@ async function main() {
       // 구간 밖의 과거 이력은 그대로 보존된다.
       const prev = stores[code] || { name, days: [] };
       const keptDays = (prev.days || []).filter((d) => d.SDA_DT < start || d.SDA_DT > end);
-      stores[code] = { name: prev.name || name, days: [...keptDays, ...result.days] };
+      stores[code] = { ...prev, name: prev.name || name, days: [...keptDays, ...result.days] };
 
       if (result.partialError) {
         partial.push(`${code}(${name}): ${result.partialError}`);
