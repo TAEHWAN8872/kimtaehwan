@@ -13,6 +13,7 @@ on:
           - daily
           - backfill
           - patch
+          - product-patch
           - product-backfill
           - channel-backfill
           - product-category
@@ -152,6 +153,14 @@ jobs:
           START: ${{ github.event.inputs.patch_start }}
           END: ${{ github.event.inputs.patch_end }}
         run: node scripts/patch-missing-days.js
+      - name: 특정 매장·구간 상품별 패치 실행 (수동-product-patch, 기존 상품 데이터는 유지하고 지정 구간만 재조회+병합)
+        if: github.event.inputs.mode == 'product-patch'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          STORE_CODES: ${{ github.event.inputs.patch_store_codes }}
+          START: ${{ github.event.inputs.patch_start }}
+          END: ${{ github.event.inputs.patch_end }}
+        run: node scripts/product-patch.js
       - name: 진단 실행 (수동-debug, 원본 응답 확인용)
         if: github.event.inputs.mode == 'debug'
         env:
