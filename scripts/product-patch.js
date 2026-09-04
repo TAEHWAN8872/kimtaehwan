@@ -90,11 +90,32 @@ async function main() {
       await sleep(150);
     }
 
+    const prev = stores[code] || { name, rows: [] };
+    const compactNew = toCompactRows(newRows);
+
+    // [안전장치] API 호출은 전부 에러 없이 "성공"했는데(dayErrors=0) 정작 상품 행이
+    // 하나도 안 나온 경우, 정상적으로 매출이 0인 날짜들이었을 수도 있지만 토큰 만료/
+    // 권한 문제 등으로 API가 조용히 빈 응답(RESPONSE_CODE 0000 + 빈 배열)을 준 것일
+    // 수도 있다. 이 상태로 그대로 병합하면 기존에 있던 정상 데이터까지 빈 값으로
+    // 덮어써버리는 사고가 나므로(2026-09-04 BHD097 8월 데이터 유실 사고 실제 발생),
+    // 기존 구간 안에 이미 데이터가 있었는데 새로 받은 게 0행이면 병합을 건너뛰고
+    // 경고만 남긴다. 정말로 매출이 0인 신규 매장/구간이라면(기존 데이터 자체가 없었음)
+    // 정상 진행한다.
+    const existingInRange = (prev.rows || []).filter((r) => r[0] >= start && r[0] <= end);
+    if (dayErrors.length === 0 && compactNew.length === 0 && existingInRange.length > 0) {
+      failed.push(
+        `${code}(${name}) 의심스러운 결과: API 호출은 전부 성공했지만 상품 행이 0개 ` +
+        `(기존에 이 구간 데이터 ${existingInRange.length}행 있었음) — 토큰 만료 등 API 응답 ` +
+        `이상 가능성이 있어 병합을 건너뜀. 기존 데이터는 그대로 유지됨.`
+      );
+      console.log(`[건너뜀-의심] ${code}(${name}): 0행이지만 기존 ${existingInRange.length}행 보존, 병합 안 함`);
+      if (i < codes.length - 1) await sleep(150);
+      continue;
+    }
+
     // 지정한 구간에 해당하는 기존 행만 제거하고, 새로 받은 값으로 교체.
     // 구간 밖의 기존 데이터(과거 전체 이력)는 그대로 유지된다.
-    const prev = stores[code] || { name, rows: [] };
     const keptRows = (prev.rows || []).filter((r) => r[0] < start || r[0] > end);
-    const compactNew = toCompactRows(newRows);
     stores[code] = { name: prev.name || name, rows: [...keptRows, ...compactNew] };
 
     if (dayErrors.length > 0) {
