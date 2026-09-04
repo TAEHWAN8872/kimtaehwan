@@ -84,8 +84,11 @@ async function main() {
       const result = await fetchOneStoreOrderDetail(token, code, date);
       if (result.error) {
         dayErrors.push(`${date}: ${result.error}`);
+        console.log(`  [진단] ${date}: 에러 - ${result.error}`);
       } else {
-        newRows.push(...aggregateOrderDetailToProducts(result.rows));
+        const dayProducts = aggregateOrderDetailToProducts(result.rows);
+        console.log(`  [진단] ${date}: 원본 ${result.rows.length}줄 -> 상품 ${dayProducts.length}종`);
+        newRows.push(...dayProducts);
       }
       await sleep(150);
     }
