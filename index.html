@@ -380,9 +380,11 @@ body.hide-names .store-name:hover{
 .vlog-today-card{background:#111e2e;border-radius:10px;padding:12px 16px;border:0.5px solid #1e3347;}
 .vlog-today-card.used{border-color:#3db87a;background:#0f2418;}
 .vlog-today-card .vl{font-size:11px;color:#6b8fa8;margin-bottom:5px;}
-.vlog-today-card .vv{font-size:16px;font-weight:700;color:#e0f0ff;}
+.vlog-today-card .vv{font-size:16px;font-weight:700;color:#4a5f75;}
 .vlog-today-card.used .vl{color:#7eb8e8;font-weight:700;font-size:13px;}
 .vlog-today-card.used .vv{color:#4ade80;font-size:15px;}
+input[type="date"]{color-scheme: dark;}
+input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(0.8) brightness(1.5); cursor:pointer;}
 .vlog-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
 .vlog-nav button{padding:5px 12px;background:#1a2f44;border:0.5px solid #2a5a8a;border-radius:6px;color:#aac4e0;font-size:12px;cursor:pointer;}
 .vlog-nav button:hover{border-color:#7eb8e8;color:#7eb8e8;}
@@ -924,14 +926,19 @@ body.hide-names .store-name:hover{
       <div class="vlog-today-row" id="vlogTodayRow"></div>
     </div>
     <div class="card">
-      <div class="ctitle"><span>날짜별 조회</span></div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-        <input type="date" id="vlogPickDate"
-          style="padding:6px 10px;background:#1a2f44;border:0.5px solid #2a5a8a;border-radius:6px;color:#e0f0ff;font-size:12px;outline:none;"
-          onchange="window.renderVehicleForDate(this.value)">
-        <span style="font-size:10px;color:#4a5f75;">달력에서 날짜를 클릭해도 바로 조회돼요</span>
+      <div class="ctitle" style="cursor:pointer;" onclick="window.toggleVlogPick()">
+        <span>날짜별 조회</span>
+        <span id="vlogPickToggleIcon" style="font-size:10px;color:#6b8fa8;">▼</span>
       </div>
-      <div class="vlog-today-row" id="vlogPickRow"></div>
+      <div id="vlogPickBody" style="display:none;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="date" id="vlogPickDate"
+            style="padding:6px 10px;background:#1a2f44;border:0.5px solid #2a5a8a;border-radius:6px;color:#e0f0ff;font-size:12px;outline:none;"
+            onchange="window.renderVehicleForDate(this.value)">
+          <span style="font-size:10px;color:#4a5f75;">달력에서 날짜를 클릭해도 바로 조회돼요</span>
+        </div>
+        <div class="vlog-today-row" id="vlogPickRow"></div>
+      </div>
     </div>
     <div class="card">
       <div class="ctitle"><span>월별 이용 달력</span></div>
@@ -5108,6 +5115,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     return VEHICLE_LOG_CACHE.filter(r => r.date === dateStr && String(r.vehicle).trim() === vehicle);
   }
 
+  window.toggleVlogPick = function(force){
+    const body = document.getElementById('vlogPickBody');
+    const icon = document.getElementById('vlogPickToggleIcon');
+    if(!body || !icon) return;
+    const show = (force !== undefined) ? force : (body.style.display === 'none');
+    body.style.display = show ? '' : 'none';
+    icon.textContent = show ? '▲' : '▼';
+  };
+
   window.renderVehicleToday = function(){
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -5118,22 +5134,23 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const names = used ? entries.map(e=>e.name).filter(Boolean).join(', ') : '미기록';
       return `<div class="vlog-today-card ${used?'used':''}">
         <div class="vl">차량 ${v}</div>
-        <div class="vv">${used ? '✅ ' + names : '⬜ 미기록'}</div>
+        <div class="vv">${used ? '✅ ' + names : '미기록'}</div>
       </div>`;
     }).join('');
     document.getElementById('vlogTodayRow').innerHTML = html;
 
-    // 날짜별 조회 인풋 기본값을 오늘로 세팅 (처음 로드 시에만)
+    // 날짜별 조회 인풋 기본값을 오늘로 세팅 (처음 로드 시에만, 패널은 접힌 채로 유지)
     const pickEl = document.getElementById('vlogPickDate');
     if(pickEl && !pickEl.value) pickEl.value = todayStr;
-    window.renderVehicleForDate(pickEl ? pickEl.value : todayStr);
+    window.renderVehicleForDate(pickEl ? pickEl.value : todayStr, false);
   };
 
   // 특정 날짜를 선택하면 그 날짜 기준 차량별 이용 현황을 카드로 보여준다 (달력 셀 클릭 시에도 호출됨)
-  window.renderVehicleForDate = function(dateStr){
+  window.renderVehicleForDate = function(dateStr, expand){
     if(!dateStr) return;
     const pickEl = document.getElementById('vlogPickDate');
     if(pickEl) pickEl.value = dateStr;
+    if(expand !== false) window.toggleVlogPick(true);
     const [y, m, d] = dateStr.split('-').map(Number);
     const html = VEHICLE_LIST.map(v => {
       const entries = vlogFindEntries(dateStr, v);
@@ -5141,7 +5158,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const names = used ? entries.map(e=>e.name).filter(Boolean).join(', ') : '미기록';
       return `<div class="vlog-today-card ${used?'used':''}">
         <div class="vl">차량 ${v}</div>
-        <div class="vv">${used ? '✅ ' + names : '⬜ 미기록'}</div>
+        <div class="vv">${used ? '✅ ' + names : '미기록'}</div>
       </div>`;
     }).join('');
     const rowEl = document.getElementById('vlogPickRow');
