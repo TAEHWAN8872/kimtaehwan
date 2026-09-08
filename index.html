@@ -5150,11 +5150,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     if(start === end){
       driverPart = `<span class="vlog-driver">${start || '(운전자 미기재)'}</span>`;
     } else {
-      driverPart = `<span class="vlog-driver">시작 ${start || '?'} 종료 ${end || '?'}</span>`;
+      driverPart = `<span class="vlog-driver">시작 ${start || '?'} → 종료 ${end || '?'}</span>`;
     }
     let html = driverPart;
     if(companion && companion !== start && companion !== end){
-      html += ` <span class="vlog-companion">· ${companion}</span>`;
+      html += ` <span class="vlog-companion">/ 동행자 ${companion}</span>`;
     }
     return html;
   }
@@ -5163,8 +5163,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const start = e.startDriver || '';
     const end = e.endDriver || '';
     const companion = e.companion || '';
-    let driverPart = (start === end) ? (start || '(운전자 미기재)') : `시작 ${start||'?'} 종료 ${end||'?'}`;
-    if(companion && companion !== start && companion !== end) driverPart += ` · 동행 ${companion}`;
+    let driverPart = (start === end) ? (start || '(운전자 미기재)') : `시작 ${start||'?'} → 종료 ${end||'?'}`;
+    if(companion && companion !== start && companion !== end) driverPart += ` / 동행자 ${companion}`;
     return driverPart;
   }
 
