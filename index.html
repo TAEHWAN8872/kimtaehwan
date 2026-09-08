@@ -380,9 +380,9 @@ body.hide-names .store-name:hover{
 .vlog-today-card{background:#111e2e;border-radius:10px;padding:12px 16px;border:0.5px solid #1e3347;}
 .vlog-today-card.used{border-color:#3db87a;background:#0f2418;}
 .vlog-today-card .vl{font-size:11px;color:#6b8fa8;margin-bottom:5px;}
-.vlog-today-card .vv{font-size:16px;font-weight:700;color:#4a5f75;}
+.vlog-today-card .vv{font-size:13px;font-weight:600;color:#4a5f75;line-height:1.5;}
 .vlog-today-card.used .vl{color:#7eb8e8;font-weight:700;font-size:13px;}
-.vlog-today-card.used .vv{color:#4ade80;font-size:15px;}
+.vlog-today-card.used .vv{color:#4ade80;font-size:13px;}
 input[type="date"]{color-scheme: dark;}
 input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:pointer;}
 .vlog-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
@@ -951,7 +951,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div class="vlog-grid-wrap">
         <table class="vlog-grid" id="vlogGridTable"></table>
       </div>
-      <div style="font-size:10px;color:#4a5f75;margin-top:8px;">※ 이용자 입력은 구글시트 "차량일지" 탭에서 직접 해주세요. (날짜 / 차량번호 / 이용자 순으로 한 줄씩 입력)</div>
+      <div style="font-size:10px;color:#4a5f75;margin-top:8px;">※ 이용자 입력은 구글시트 "차량일지" 탭에서 직접 해주세요. (날짜 / 차량번호 / 시작 운전자 / 종료 운전자 / 동행자 순으로 한 줄씩 입력)</div>
     </div>
   </div>
 
@@ -5128,16 +5128,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     document.getElementById('vlogTodayTitle').textContent = `오늘(${now.getMonth()+1}월 ${now.getDate()}일) 차량 이용 현황`;
-    const html = VEHICLE_LIST.map(v => {
-      const entries = vlogFindEntries(todayStr, v);
-      const used = entries.length > 0;
-      const names = used ? entries.map(e=>e.name).filter(Boolean).join(', ') : '미기록';
-      return `<div class="vlog-today-card ${used?'used':''}">
-        <div class="vl">차량 ${v}</div>
-        <div class="vv">${used ? '✅ ' + names : '미기록'}</div>
-      </div>`;
-    }).join('');
-    document.getElementById('vlogTodayRow').innerHTML = html;
+    document.getElementById('vlogTodayRow').innerHTML = vlogBuildCardsHtml(todayStr);
 
     // 날짜별 조회 인풋 기본값을 오늘로 세팅 (처음 로드 시에만, 패널은 접힌 채로 유지)
     const pickEl = document.getElementById('vlogPickDate');
@@ -5145,24 +5136,38 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.renderVehicleForDate(pickEl ? pickEl.value : todayStr, false);
   };
 
+  // 차량별 카드 HTML을 만드는 공통 함수 (오늘 현황 / 날짜별 조회 둘 다 사용)
+  function vlogBuildCardsHtml(dateStr){
+    return VEHICLE_LIST.map(v => {
+      const entries = vlogFindEntries(dateStr, v);
+      const used = entries.length > 0;
+      let detailHtml;
+      if(!used){
+        detailHtml = '미기록';
+      } else {
+        detailHtml = entries.map(e => {
+          const parts = [];
+          if(e.startDriver) parts.push(`시작 ${e.startDriver}`);
+          if(e.endDriver && e.endDriver !== e.startDriver) parts.push(`종료 ${e.endDriver}`);
+          if(e.companion) parts.push(`동행 ${e.companion}`);
+          return parts.length ? parts.join(' · ') : '기록됨';
+        }).join('<br>');
+      }
+      return `<div class="vlog-today-card ${used?'used':''}">
+        <div class="vl">차량 ${v}</div>
+        <div class="vv">${used ? '✅ ' : ''}${detailHtml}</div>
+      </div>`;
+    }).join('');
+  }
+
   // 특정 날짜를 선택하면 그 날짜 기준 차량별 이용 현황을 카드로 보여준다 (달력 셀 클릭 시에도 호출됨)
   window.renderVehicleForDate = function(dateStr, expand){
     if(!dateStr) return;
     const pickEl = document.getElementById('vlogPickDate');
     if(pickEl) pickEl.value = dateStr;
     if(expand !== false) window.toggleVlogPick(true);
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const html = VEHICLE_LIST.map(v => {
-      const entries = vlogFindEntries(dateStr, v);
-      const used = entries.length > 0;
-      const names = used ? entries.map(e=>e.name).filter(Boolean).join(', ') : '미기록';
-      return `<div class="vlog-today-card ${used?'used':''}">
-        <div class="vl">차량 ${v}</div>
-        <div class="vv">${used ? '✅ ' + names : '미기록'}</div>
-      </div>`;
-    }).join('');
     const rowEl = document.getElementById('vlogPickRow');
-    if(rowEl) rowEl.innerHTML = html;
+    if(rowEl) rowEl.innerHTML = vlogBuildCardsHtml(dateStr);
   };
 
   window.vlogChangeMonth = function(delta){
@@ -5195,8 +5200,14 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         const entries = vlogFindEntries(dateStr, v);
         const filled = entries.length > 0;
         const isToday = dateStr === todayStr;
-        const names = filled ? entries.map(e=>e.name).filter(Boolean).join(', ') : '';
-        bodyHtml += `<td class="vlog-cell ${filled?'filled':''} ${isToday?'today-col':''}" style="cursor:pointer;" title="${dateStr} ${v} ${names}" onclick="window.renderVehicleForDate('${dateStr}')">${filled ? '✅' : ''}</td>`;
+        const detail = filled ? entries.map(e => {
+          const parts = [];
+          if(e.startDriver) parts.push(`시작:${e.startDriver}`);
+          if(e.endDriver && e.endDriver !== e.startDriver) parts.push(`종료:${e.endDriver}`);
+          if(e.companion) parts.push(`동행:${e.companion}`);
+          return parts.join(' ');
+        }).join(' / ') : '';
+        bodyHtml += `<td class="vlog-cell ${filled?'filled':''} ${isToday?'today-col':''}" style="cursor:pointer;" title="${dateStr} ${v} ${detail}" onclick="window.renderVehicleForDate('${dateStr}')">${filled ? '✅' : ''}</td>`;
       }
       bodyHtml += '</tr>';
     });
