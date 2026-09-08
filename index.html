@@ -402,6 +402,16 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
 .vlog-grid td.vlog-cell.filled{background:#123320;color:#4ade80;font-weight:600;}
 .vlog-grid td.vlog-cell.today-col{background:#152236;}
 .vlog-grid td.vlog-cell.filled.today-col{background:#16452c;}
+.vlog-status-groups{display:flex;flex-direction:column;gap:16px;}
+.vlog-status-group-title{font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.vlog-status-group-title.inuse{color:#4ade80;}
+.vlog-status-group-title.athome{color:#7eb8e8;}
+.vlog-status-group-title .cnt{font-size:10px;font-weight:600;color:#4a5f75;}
+.vlog-today-card.athome{border-color:#2a5a8a;background:#0f1e2e;}
+.vlog-today-card.athome .vl{color:#7eb8e8;font-weight:700;font-size:13px;}
+.vlog-today-card.athome .vv{color:#aac4e0;font-size:13px;}
+.vlog-status-date{display:block;font-size:9px;color:#4a5f75;font-weight:500;margin-top:3px;}
+.vlog-status-empty{font-size:11px;color:#4a5f75;padding:6px 2px;}
 
 /* LIVE 매출 */
 .live-subtabs{display:flex;gap:6px;margin-bottom:12px;}
@@ -921,6 +931,21 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
 
   <!-- 차량일지 페이지 -->
   <div id="vehiclePage" style="display:none;">
+    <div class="card" style="margin-bottom:14px;">
+      <div class="ctitle"><span>차량 현재 상태</span>
+        <span style="font-size:10px;color:#4a5f75;font-weight:400;">(각 차량의 가장 최근 기록 기준)</span>
+      </div>
+      <div class="vlog-status-groups">
+        <div>
+          <div class="vlog-status-group-title inuse">🚙 차량 사용중 <span class="cnt" id="vlogInUseCnt"></span></div>
+          <div class="vlog-today-row" id="vlogInUseRow"></div>
+        </div>
+        <div>
+          <div class="vlog-status-group-title athome">🏢 회사 보관중 <span class="cnt" id="vlogAtCompanyCnt"></span></div>
+          <div class="vlog-today-row" id="vlogAtCompanyRow"></div>
+        </div>
+      </div>
+    </div>
     <div class="card" style="margin-bottom:14px;">
       <div class="ctitle"><span id="vlogTodayTitle">오늘 차량 이용 현황</span>
         <button onclick="window.loadVehicleLog()" style="padding:4px 10px;background:#1a2f44;border:0.5px solid #2a5a8a;border-radius:6px;color:#aac4e0;font-size:10px;cursor:pointer;">🔄 새로고침</button>
@@ -5104,6 +5129,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const data = await res.json();
       VEHICLE_LOG_CACHE = Array.isArray(data) ? data : (data.items || []);
       loadingEl.style.display = 'none';
+      window.renderVehicleStatus();
       window.renderVehicleToday();
       window.renderVehicleGrid();
     }catch(e){
@@ -5167,6 +5193,58 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     if(companion && companion !== start && companion !== end) driverPart += ` / 동행자 ${companion}`;
     return driverPart;
   }
+
+  function vlogFormatDateShort(dateStr){
+    if(!dateStr) return '';
+    const p = String(dateStr).split('-');
+    return p.length === 3 ? `${Number(p[1])}/${Number(p[2])}` : dateStr;
+  }
+
+  // 차량별 "가장 최근 기록"을 찾아 현재 상태(사용중 / 회사 보관중)를 계산.
+  // - 종료 운전자가 "회사복귀"로 기재된 최신 기록이면 → 회사 보관중
+  // - 그 외에 시작 운전자가 있으면 → 차량 사용중 (해당 운전자 표시)
+  // 날짜는 차량마다 각자의 최신 기록 날짜를 그대로 사용(=자동으로 최근 날짜를 가져옴).
+  window.renderVehicleStatus = function(){
+    const inUseRow = document.getElementById('vlogInUseRow');
+    const atCompanyRow = document.getElementById('vlogAtCompanyRow');
+    const inUseCnt = document.getElementById('vlogInUseCnt');
+    const atCompanyCnt = document.getElementById('vlogAtCompanyCnt');
+    if(!inUseRow || !atCompanyRow) return;
+
+    const inUse = [], atCompany = [];
+    VEHICLE_LIST.forEach(v => {
+      const entries = VEHICLE_LOG_CACHE.filter(r => String(r.vehicle).trim() === v && r.date);
+      if(entries.length === 0) return; // 기록이 아예 없으면 두 그룹 어디에도 표시하지 않음
+      // 날짜 오름차순 정렬(같은 날짜 여러 건이면 시트에 입력된 순서를 유지) 후 마지막 = 가장 최근 기록
+      const sorted = entries.slice().sort((a,b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+      const latest = sorted[sorted.length - 1];
+      const start = (latest.startDriver || '').trim();
+      const end = (latest.endDriver || '').trim();
+      if(end === '회사복귀'){
+        atCompany.push({ vehicle: v, date: latest.date });
+      } else if(start){
+        const driverLabel = (end && end !== start) ? `${start} → ${end}` : start;
+        inUse.push({ vehicle: v, date: latest.date, driver: driverLabel });
+      }
+    });
+
+    inUseCnt.textContent = inUse.length ? `${inUse.length}대` : '';
+    atCompanyCnt.textContent = atCompany.length ? `${atCompany.length}대` : '';
+
+    inUseRow.innerHTML = inUse.length
+      ? inUse.map(g => `<div class="vlog-today-card used">
+          <div class="vl">차량 ${g.vehicle}</div>
+          <div class="vv">${g.driver}<span class="vlog-status-date">${vlogFormatDateShort(g.date)} 출차 기준</span></div>
+        </div>`).join('')
+      : '<div class="vlog-status-empty">현재 사용중인 차량이 없습니다.</div>';
+
+    atCompanyRow.innerHTML = atCompany.length
+      ? atCompany.map(g => `<div class="vlog-today-card athome">
+          <div class="vl">차량 ${g.vehicle}</div>
+          <div class="vv">회사복귀<span class="vlog-status-date">${vlogFormatDateShort(g.date)} 복귀 기준</span></div>
+        </div>`).join('')
+      : '<div class="vlog-status-empty">회사에 보관중인 차량이 없습니다.</div>';
+  };
 
   // 차량별 카드 HTML을 만드는 공통 함수 (오늘 현황 / 날짜별 조회 둘 다 사용)
   function vlogBuildCardsHtml(dateStr){
