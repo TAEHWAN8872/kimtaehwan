@@ -6794,6 +6794,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       document.getElementById('livePrUpdatedAt').textContent = 'OKPOS 동기화: ' + formatSyncTime_(raw.updatedAt)
         + ' (데이터 수집 범위: ' + ymdToInputDate_(raw.START) + ' ~ ' + ymdToInputDate_(raw.END) + ')';
       window.renderLivePrCurrentView();
+      // 메뉴 선택 패널이 열려 있으면, 방금 조회한 기간 기준 수량으로 패널의 상품별 갯수도 갱신
+      const openPanel = document.getElementById('livePrProductPanel');
+      if(openPanel && openPanel.style.display !== 'none' && window.__livePrProductList){
+        const panelSearchInput = document.getElementById('livePrProductPanelSearch');
+        renderLivePrProductPanelItems_(window.__livePrProductList, panelSearchInput ? panelSearchInput.value : '');
+      }
     } catch(err){
       document.getElementById('livePrTableWrap').innerHTML =
         `<div style="padding:20px;color:#e05555;">불러오기 실패: ${err.message}</div>`;
@@ -7072,19 +7078,34 @@ function isLivePrExcluded_(name){
   }
 
   // 체크박스 목록 부분만 갱신 (검색 input DOM은 건드리지 않음 → 조합 중인 한글이 안 깨짐)
+  // 현재 조회된 결과(window.__livePrRows, 🔄 조회 버튼으로 불러온 기간 기준)를 상품명별로
+  // 합산해서 { 상품명: 합계수량 } 형태로 돌려준다. 아직 조회를 안 했으면 빈 객체.
+  function getLivePrProductQtyMap_(){
+    const map = {};
+    (window.__livePrRows || []).forEach(r => {
+      map[r.product] = (map[r.product] || 0) + r.qty;
+    });
+    return map;
+  }
+
   function renderLivePrProductPanelItems_(list, filterQ){
     const itemsWrap = document.getElementById('livePrProductPanelItems');
     const countEl = document.getElementById('livePrProductPanelCount');
     if(!itemsWrap) return;
     const checked = window.__livePrCheckedProducts;
     const filtered = getLivePrFilteredList_(list, filterQ);
+    const qtyMap = getLivePrProductQtyMap_();
 
     itemsWrap.innerHTML = filtered.length
-      ? filtered.map(p => `
+      ? filtered.map(p => {
+          const qty = qtyMap[p];
+          const qtyHtml = qty ? `<span style="margin-left:auto;color:#8fb8dd;font-size:11px;white-space:nowrap;">${qty.toLocaleString()}개</span>` : '';
+          return `
           <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;font-size:12px;color:#c8dff0;cursor:pointer;border-radius:4px;">
             <input type="checkbox" value="${escLivePr_(p)}" ${checked.has(p) ? 'checked' : ''} onchange="window.toggleLivePrProductCheck(this.value, this.checked)">
-            <span>${p}</span>
-          </label>`).join('')
+            <span>${p}</span>${qtyHtml}
+          </label>`;
+        }).join('')
       : `<div style="padding:8px;color:#5c7690;font-size:12px;">일치하는 메뉴가 없어요.</div>`;
 
     if(countEl) countEl.textContent = `${checked.size}개 선택됨`;
