@@ -6759,9 +6759,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     try {
       const [raw] = await Promise.all([fetchProductDaily_(forceRefresh), fetchProductCategoryMap_()]); // ← fetchProductCategoryMap_() 추가
       if(start < raw.START || end > raw.END){
-        document.getElementById('livePrTableWrap').innerHTML =
+        // 현재 선택된 보기 모드(합계/일별/월별/전매장)가 무엇이든 메시지가 보이도록
+        // 4개 결과 영역 모두에 동일한 안내 메시지를 채운다 (숨겨진 영역에만 써서
+        // "반응 없음"처럼 보이던 문제 수정).
+        const outOfRangeMsg =
           `<div class="live-empty">데이터가 수집된 기간(${ymdToInputDate_(raw.START)} ~ ${ymdToInputDate_(raw.END)}) 밖이에요. 그 안의 날짜로 다시 조회해주세요.</div>`;
-        document.getElementById('livePrDailyTableWrap').innerHTML = '';
+        document.getElementById('livePrTableWrap').innerHTML = outOfRangeMsg;
+        document.getElementById('livePrDailyTableWrap').innerHTML = outOfRangeMsg;
+        document.getElementById('livePrMonthlyTableWrap').innerHTML = outOfRangeMsg;
+        document.getElementById('livePrAllTableWrap').innerHTML = outOfRangeMsg;
         window.__livePrRawFlat = null;
         window.__livePrPeriod = null;
         return;
