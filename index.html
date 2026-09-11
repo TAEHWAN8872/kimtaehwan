@@ -708,6 +708,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <select id="livePrViewMode" class="live-input" onchange="window.switchLivePrViewMode()">
           <option value="summary">합계보기</option>
           <option value="daily">일별보기</option>
+          <option value="all">전매장</option>
         </select>
         <label>시작일</label>
         <input id="livePrStartDate" type="date" class="live-input">
@@ -737,6 +738,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       </div>
       <div id="livePrTableWrap"></div>
       <div id="livePrDailyTableWrap" style="display:none;"></div>
+      <div id="livePrAllTableWrap" style="display:none;"></div>
     </div>
 
     <!-- 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) -->
@@ -5720,6 +5722,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.downloadLiveProductExcel = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     if(mode === 'daily') downloadLiveTableExcel_('productDaily', '상품별일별매출', '상품별일별매출');
+    else if(mode === 'all') downloadLiveTableExcel_('productAll', '상품별전매장매출', '상품별전매장매출');
     else downloadLiveTableExcel_('product', '상품별매출', '상품별매출');
   };
   window.downloadLiveSummaryExcel = function(){
@@ -7200,15 +7203,17 @@ function isLivePrExcluded_(name){
   // 하루하루의 수량/금액을 함께 보여주고, 맨 위 "전 매장 합계" 행에서 전 매장 기준 일별 합계도 보여준다.
   window.switchLivePrViewMode = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
-    document.getElementById('livePrTableWrap').style.display = (mode === 'daily') ? 'none' : '';
+    document.getElementById('livePrTableWrap').style.display = (mode === 'summary') ? '' : 'none';
     document.getElementById('livePrDailyTableWrap').style.display = (mode === 'daily') ? '' : 'none';
+    document.getElementById('livePrAllTableWrap').style.display = (mode === 'all') ? '' : 'none';
     window.renderLivePrCurrentView();
   };
 
-  // 검색/필터 입력마다 이 함수를 호출하면 현재 선택된 보기 모드(합계/일별)에 맞는 렌더 함수로 자동 분기됨
+  // 검색/필터 입력마다 이 함수를 호출하면 현재 선택된 보기 모드(합계/일별/전매장)에 맞는 렌더 함수로 자동 분기됨
   window.renderLivePrCurrentView = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     if(mode === 'daily') window.renderLivePrDailyTable();
+    else if(mode === 'all') window.renderLivePrAllStoresTable();
     else window.renderLiveProductTable();
   };
 
@@ -7342,6 +7347,109 @@ function isLivePrExcluded_(name){
               ${sortTh('name', `매장명 (${storeRows.length}개)`, 'center')}<th>담당자</th>${sortTh('qty','합계수량')}${sortTh('amount','합계금액')}${headerCells}
             </tr></thead>
             <tbody>${totalRow}${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  };
+
+  // ── 🏷️ 상품별 매출: "전매장" 모드 ────────────────────────────────
+  // 매장별 구분 없이, 조건(기간·상품·매장검색·담당자)에 맞는 모든 매장의 판매를 하루 단위로 합쳐서
+  // 딱 한 줄(전체 합계)로 보여준다. 일별보기의 "전 매장 합계" 행만 독립된 화면으로 뽑아낸 형태.
+  window.renderLivePrAllStoresTable = function(){
+    const wrap = document.getElementById('livePrAllTableWrap');
+    if(!wrap) return;
+    const flat = window.__livePrRawFlat;
+    const period = window.__livePrPeriod;
+    if(!flat || !period){ wrap.innerHTML = ''; return; }
+
+    const storeMetaMap = {};
+    flat.forEach(r => {
+      if(!storeMetaMap[r.code]) storeMetaMap[r.code] = {
+        code: r.code, name: r.name,
+        manager: (typeof mkStoreManager === 'function') ? mkStoreManager(r.name) : null
+      };
+    });
+    const storeMetaList = Object.values(storeMetaMap);
+    livePopulateManagerSel('livePrManagerSel', storeMetaList);
+    const managerVal = document.getElementById('livePrManagerSel') ? document.getElementById('livePrManagerSel').value : 'all';
+
+    const storeQ = (document.getElementById('livePrStoreSearch').value || '').trim();
+    const prodQ = (document.getElementById('livePrProductSearch').value || '').trim();
+    const checkedProducts = window.__livePrCheckedProducts || new Set();
+
+    const allowedCodes = new Set(storeMetaList
+      .filter(s => managerVal === 'all' || s.manager === managerVal)
+      .filter(s => !storeQ || (s.name||'').includes(storeQ))
+      .map(s => s.code));
+
+    let rows = flat.filter(r => allowedCodes.has(r.code));
+    if(prodQ || checkedProducts.size){
+      rows = rows.filter(r => checkedProducts.has(r.product) || (prodQ && (r.product||'').includes(prodQ)));
+    }
+
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">조건에 맞는 판매 내역이 없어요.</div>`;
+      return;
+    }
+
+    const WD = ['일','월','화','수','목','금','토'];
+    const dates = liveDateListInRange_(period.start, period.end);
+
+    const totalByDate = {}; dates.forEach(d => totalByDate[d.ymd] = { qty: 0, amount: 0 });
+    const storeCodesByDate = {}; dates.forEach(d => storeCodesByDate[d.ymd] = new Set());
+    let grandQty = 0, grandAmount = 0;
+    const allStoreCodes = new Set();
+
+    rows.forEach(r => {
+      totalByDate[r.date].qty += r.qty;
+      totalByDate[r.date].amount += r.amount;
+      storeCodesByDate[r.date].add(r.code);
+      allStoreCodes.add(r.code);
+      grandQty += r.qty;
+      grandAmount += r.amount;
+    });
+
+    const cellHtml = (v, storeCount) => {
+      if(!v || (!v.qty && !v.amount)) return `<td class="zero">-</td>`;
+      return `<td>
+        <div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div>
+        <div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div>
+        <div style="font-size:10px;color:#5c7690;">(${storeCount}개점)</div>
+      </td>`;
+    };
+
+    const headerCells = dates.map(d =>
+      `<th class="${(d.wd===0||d.wd===6)?'wknd':''}" style="text-align:right;">${d.ymd.slice(4,6)}/${d.ymd.slice(6,8)}(${WD[d.wd]})</th>`
+    ).join('');
+
+    const totalRow = `
+      <tr class="total-row">
+        <td>전매장 합계</td>
+        <td>${allStoreCodes.size}개 매장</td>
+        <td>${grandQty.toLocaleString()}개</td>
+        <td>${grandAmount.toLocaleString()}</td>
+        ${dates.map(d => cellHtml(totalByDate[d.ymd], storeCodesByDate[d.ymd].size)).join('')}
+      </tr>`;
+
+    // 엑셀 다운로드용 캐시
+    window.__liveExportCache = window.__liveExportCache || {};
+    window.__liveExportCache.productAll = {
+      header: ['구분','매출 매장수','합계수량','합계금액',
+        ...dates.flatMap(d => [`${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]}) 수량`, `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]}) 금액`, `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]}) 매출매장수`])],
+      rows: [
+        ['전매장 합계', allStoreCodes.size, grandQty, grandAmount,
+          ...dates.flatMap(d => [totalByDate[d.ymd].qty, totalByDate[d.ymd].amount, storeCodesByDate[d.ymd].size])]
+      ]
+    };
+
+    wrap.innerHTML = `
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              <th style="text-align:center;">구분</th><th>매출 매장수</th><th>합계수량</th><th>합계금액</th>${headerCells}
+            </tr></thead>
+            <tbody>${totalRow}</tbody>
           </table>
         </div>
       </div>`;
