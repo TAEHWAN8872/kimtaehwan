@@ -708,12 +708,21 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <select id="livePrViewMode" class="live-input" onchange="window.switchLivePrViewMode()">
           <option value="summary">합계보기</option>
           <option value="daily">일별보기</option>
+          <option value="monthly">월별보기</option>
           <option value="all">전매장</option>
         </select>
-        <label>시작일</label>
-        <input id="livePrStartDate" type="date" class="live-input">
-        <label>종료일</label>
-        <input id="livePrEndDate" type="date" class="live-input">
+        <span id="livePrDateWrap">
+          <label>시작일</label>
+          <input id="livePrStartDate" type="date" class="live-input">
+          <label>종료일</label>
+          <input id="livePrEndDate" type="date" class="live-input">
+        </span>
+        <span id="livePrMonthWrap" style="display:none;">
+          <label>시작월</label>
+          <input id="livePrStartMonth" type="month" class="live-input">
+          <label>종료월</label>
+          <input id="livePrEndMonth" type="month" class="live-input">
+        </span>
         <input id="livePrProductSearch" type="text" placeholder="상품명 검색... (비워두면 전체)" autocomplete="off"
           oninput="window.renderLivePrCurrentView()" class="live-input" style="min-width:200px;">
         <div style="position:relative;display:inline-block;">
@@ -738,6 +747,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       </div>
       <div id="livePrTableWrap"></div>
       <div id="livePrDailyTableWrap" style="display:none;"></div>
+      <div id="livePrMonthlyTableWrap" style="display:none;"></div>
       <div id="livePrAllTableWrap" style="display:none;"></div>
     </div>
 
@@ -5724,6 +5734,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.downloadLiveProductExcel = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     if(mode === 'daily') downloadLiveTableExcel_('productDaily', '상품별일별매출', '상품별일별매출');
+    else if(mode === 'monthly') downloadLiveTableExcel_('productMonthly', '상품별월별매출', '상품별월별매출');
     else if(mode === 'all') downloadLiveTableExcel_('productAll', '상품별전매장매출', '상품별전매장매출');
     else downloadLiveTableExcel_('product', '상품별매출', '상품별매출');
   };
@@ -6709,17 +6720,37 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   }
 
   window.loadLiveProduct = async function(forceRefresh){
-    const startInput = document.getElementById('livePrStartDate');
-    const endInput = document.getElementById('livePrEndDate');
-    if(!startInput.value || !endInput.value){
-      alert('시작일과 종료일을 모두 선택해주세요.');
-      return;
-    }
-    const start = inputDateToYmd_(startInput.value);
-    const end = inputDateToYmd_(endInput.value);
-    if(start > end){
-      alert('시작일이 종료일보다 늦을 수 없어요.');
-      return;
+    const viewMode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
+    let start, end;
+    if(viewMode === 'monthly'){
+      const startMonthInput = document.getElementById('livePrStartMonth');
+      const endMonthInput = document.getElementById('livePrEndMonth');
+      if(!startMonthInput.value || !endMonthInput.value){
+        alert('시작월과 종료월을 모두 선택해주세요.');
+        return;
+      }
+      if(startMonthInput.value > endMonthInput.value){
+        alert('시작월이 종료월보다 늦을 수 없어요.');
+        return;
+      }
+      const [sy, sm] = startMonthInput.value.split('-').map(Number);
+      const [ey, em] = endMonthInput.value.split('-').map(Number);
+      start = `${sy}${String(sm).padStart(2,'0')}01`;
+      const lastDay = new Date(ey, em, 0).getDate(); // em월의 마지막 날짜
+      end = `${ey}${String(em).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+    } else {
+      const startInput = document.getElementById('livePrStartDate');
+      const endInput = document.getElementById('livePrEndDate');
+      if(!startInput.value || !endInput.value){
+        alert('시작일과 종료일을 모두 선택해주세요.');
+        return;
+      }
+      start = inputDateToYmd_(startInput.value);
+      end = inputDateToYmd_(endInput.value);
+      if(start > end){
+        alert('시작일이 종료일보다 늦을 수 없어요.');
+        return;
+      }
     }
 
     document.getElementById('livePrLoading').style.display = 'block';
@@ -7207,14 +7238,31 @@ function isLivePrExcluded_(name){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     document.getElementById('livePrTableWrap').style.display = (mode === 'summary') ? '' : 'none';
     document.getElementById('livePrDailyTableWrap').style.display = (mode === 'daily') ? '' : 'none';
+    document.getElementById('livePrMonthlyTableWrap').style.display = (mode === 'monthly') ? '' : 'none';
     document.getElementById('livePrAllTableWrap').style.display = (mode === 'all') ? '' : 'none';
+    document.getElementById('livePrDateWrap').style.display = (mode === 'monthly') ? 'none' : '';
+    document.getElementById('livePrMonthWrap').style.display = (mode === 'monthly') ? '' : 'none';
+    if(mode === 'monthly'){
+      const sMonthInput = document.getElementById('livePrStartMonth');
+      const eMonthInput = document.getElementById('livePrEndMonth');
+      if(!sMonthInput.value){
+        const sDate = document.getElementById('livePrStartDate').value;
+        const now = new Date();
+        sMonthInput.value = sDate ? sDate.slice(0,7) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      }
+      if(!eMonthInput.value){
+        const eDate = document.getElementById('livePrEndDate').value;
+        eMonthInput.value = eDate ? eDate.slice(0,7) : sMonthInput.value;
+      }
+    }
     window.renderLivePrCurrentView();
   };
 
-  // 검색/필터 입력마다 이 함수를 호출하면 현재 선택된 보기 모드(합계/일별/전매장)에 맞는 렌더 함수로 자동 분기됨
+  // 검색/필터 입력마다 이 함수를 호출하면 현재 선택된 보기 모드(합계/일별/월별/전매장)에 맞는 렌더 함수로 자동 분기됨
   window.renderLivePrCurrentView = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     if(mode === 'daily') window.renderLivePrDailyTable();
+    else if(mode === 'monthly') window.renderLivePrMonthlyTable();
     else if(mode === 'all') window.renderLivePrAllStoresTable();
     else window.renderLiveProductTable();
   };
@@ -7338,6 +7386,143 @@ function isLivePrExcluded_(name){
           ...dates.flatMap(d => [totalByDate[d.ymd].qty, totalByDate[d.ymd].amount])],
         ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty, s.totalAmount,
           ...dates.flatMap(d => [(s.byDate[d.ymd]||{}).qty||0, (s.byDate[d.ymd]||{}).amount||0])])
+      ]
+    };
+
+    wrap.innerHTML = `
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              ${sortTh('name', `매장명 (${storeRows.length}개)`, 'center')}<th>담당자</th>${sortTh('qty','합계수량')}${sortTh('amount','합계금액')}${headerCells}
+            </tr></thead>
+            <tbody>${totalRow}${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  };
+
+  // ── 🏷️ 상품별 매출: "월별 보기" 모드 ──────────────────────────────
+  // 일별보기와 같은 구조이지만, 날짜 컬럼 대신 월(연월) 컬럼으로 묶어서 보여준다.
+  window.__liveSortState.productMonthly = window.__liveSortState.productMonthly || { key: 'amount', dir: -1 };
+  window.livePrMonthlySortBy = function(key){
+    const st = window.__liveSortState.productMonthly;
+    if(st.key === key){ st.dir *= -1; } else { st.key = key; st.dir = (key === 'name') ? 1 : -1; }
+    window.renderLivePrMonthlyTable();
+  };
+
+  window.renderLivePrMonthlyTable = function(){
+    const wrap = document.getElementById('livePrMonthlyTableWrap');
+    if(!wrap) return;
+    const flat = window.__livePrRawFlat;
+    const period = window.__livePrPeriod;
+    if(!flat || !period){ wrap.innerHTML = ''; return; }
+
+    // 매장 메타(코드→이름/담당자) 구성 → 담당자 셀렉트도 여기서 채움(합계보기와 동일한 매장 목록 기준)
+    const storeMetaMap = {};
+    flat.forEach(r => {
+      if(!storeMetaMap[r.code]) storeMetaMap[r.code] = {
+        code: r.code, name: r.name,
+        manager: (typeof mkStoreManager === 'function') ? mkStoreManager(r.name) : null
+      };
+    });
+    const storeMetaList = Object.values(storeMetaMap);
+    livePopulateManagerSel('livePrManagerSel', storeMetaList);
+    const managerVal = document.getElementById('livePrManagerSel') ? document.getElementById('livePrManagerSel').value : 'all';
+
+    const storeQ = (document.getElementById('livePrStoreSearch').value || '').trim();
+    const prodQ = (document.getElementById('livePrProductSearch').value || '').trim();
+    const checkedProducts = window.__livePrCheckedProducts || new Set();
+
+    const allowedCodes = new Set(storeMetaList
+      .filter(s => managerVal === 'all' || s.manager === managerVal)
+      .filter(s => !storeQ || (s.name||'').includes(storeQ))
+      .map(s => s.code));
+
+    let rows = flat.filter(r => allowedCodes.has(r.code));
+    if(prodQ || checkedProducts.size){
+      rows = rows.filter(r => checkedProducts.has(r.product) || (prodQ && (r.product||'').includes(prodQ)));
+    }
+
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">조건에 맞는 판매 내역이 없어요.</div>`;
+      return;
+    }
+
+    const months = liveMonthKeysInRange_(period.start, period.end); // ['202601','202602',...]
+
+    const byStore = {};
+    const totalByMonth = {}; months.forEach(m => totalByMonth[m] = { qty: 0, amount: 0 });
+    let grandQty = 0, grandAmount = 0;
+
+    rows.forEach(r => {
+      const mKey = r.date.slice(0,6);
+      if(!byStore[r.code]) byStore[r.code] = {
+        code: r.code, name: r.name, manager: storeMetaMap[r.code].manager,
+        byMonth: {}, totalQty: 0, totalAmount: 0
+      };
+      const s = byStore[r.code];
+      if(!s.byMonth[mKey]) s.byMonth[mKey] = { qty: 0, amount: 0 };
+      s.byMonth[mKey].qty += r.qty;
+      s.byMonth[mKey].amount += r.amount;
+      s.totalQty += r.qty;
+      s.totalAmount += r.amount;
+      totalByMonth[mKey].qty += r.qty;
+      totalByMonth[mKey].amount += r.amount;
+      grandQty += r.qty;
+      grandAmount += r.amount;
+    });
+
+    const st = window.__liveSortState.productMonthly;
+    const storeRows = Object.values(byStore).sort((a,b) => {
+      if(st.key === 'name') return st.dir * a.name.localeCompare(b.name, 'ko');
+      if(st.key === 'qty') return st.dir * (a.totalQty - b.totalQty);
+      return st.dir * (a.totalAmount - b.totalAmount);
+    });
+
+    // 월 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌
+    const cellHtml = (v) => {
+      if(!v || (!v.qty && !v.amount)) return `<td class="zero">-</td>`;
+      return `<td><div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div><div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div></td>`;
+    };
+
+    const headerCells = months.map(m =>
+      `<th style="text-align:right;">${m.slice(0,4)}년 ${Number(m.slice(4,6))}월</th>`
+    ).join('');
+
+    const bodyRows = storeRows.map(s => `
+      <tr>
+        <td style="text-align:center;">${s.name}</td>
+        <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
+        <td>${s.totalQty.toLocaleString()}개</td>
+        <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
+        ${months.map(m => cellHtml(s.byMonth[m])).join('')}
+      </tr>`).join('');
+
+    // 전 매장 합계 행 = 전 매장 기준 월별 판매량/금액
+    const totalRow = `
+      <tr class="total-row">
+        <td>전 매장 합계 (${storeRows.length}개)</td>
+        <td></td>
+        <td>${grandQty.toLocaleString()}개</td>
+        <td>${grandAmount.toLocaleString()}</td>
+        ${months.map(m => cellHtml(totalByMonth[m])).join('')}
+      </tr>`;
+
+    const sortArrow = (key) => st.key === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+    const sortTh = (key, label, align = 'right') =>
+      `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.livePrMonthlySortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
+
+    // 엑셀 다운로드용 캐시: 화면과 동일하게 월별 수량/금액을 나란히
+    window.__liveExportCache = window.__liveExportCache || {};
+    window.__liveExportCache.productMonthly = {
+      header: ['매장명','담당자','합계수량','합계금액',
+        ...months.flatMap(m => [`${m.slice(0,4)}-${m.slice(4,6)} 수량`, `${m.slice(0,4)}-${m.slice(4,6)} 금액`])],
+      rows: [
+        ['전 매장 합계', '', grandQty, grandAmount,
+          ...months.flatMap(m => [totalByMonth[m].qty, totalByMonth[m].amount])],
+        ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty, s.totalAmount,
+          ...months.flatMap(m => [(s.byMonth[m]||{}).qty||0, (s.byMonth[m]||{}).amount||0])])
       ]
     };
 
