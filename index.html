@@ -7359,23 +7359,27 @@ function isLivePrExcluded_(name){
 
     const byStore = {};
     const totalByDate = {}; dates.forEach(d => totalByDate[d.ymd] = { qty: 0, amount: 0 });
+    const totalByDateProduct = {}; dates.forEach(d => totalByDateProduct[d.ymd] = {});
     const totalByProduct = {};
     let grandQty = 0, grandAmount = 0;
 
     rows.forEach(r => {
       if(!byStore[r.code]) byStore[r.code] = {
         code: r.code, name: r.name, manager: storeMetaMap[r.code].manager,
-        byDate: {}, byProduct: {}, totalQty: 0, totalAmount: 0
+        byDate: {}, byDateProduct: {}, byProduct: {}, totalQty: 0, totalAmount: 0
       };
       const s = byStore[r.code];
       if(!s.byDate[r.date]) s.byDate[r.date] = { qty: 0, amount: 0 };
+      if(!s.byDateProduct[r.date]) s.byDateProduct[r.date] = {};
       s.byDate[r.date].qty += r.qty;
       s.byDate[r.date].amount += r.amount;
+      s.byDateProduct[r.date][r.product] = (s.byDateProduct[r.date][r.product] || 0) + r.qty;
       s.byProduct[r.product] = (s.byProduct[r.product] || 0) + r.qty;
       s.totalQty += r.qty;
       s.totalAmount += r.amount;
       totalByDate[r.date].qty += r.qty;
       totalByDate[r.date].amount += r.amount;
+      totalByDateProduct[r.date][r.product] = (totalByDateProduct[r.date][r.product] || 0) + r.qty;
       totalByProduct[r.product] = (totalByProduct[r.product] || 0) + r.qty;
       grandQty += r.qty;
       grandAmount += r.amount;
@@ -7388,10 +7392,17 @@ function isLivePrExcluded_(name){
       return st.dir * (a.totalAmount - b.totalAmount);
     });
 
-    // 날짜 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌
-    const cellHtml = (v) => {
+    // 날짜 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌.
+    // 상품을 2개 이상 체크했으면, 그날의 상품별 낱개 수량도 위에 함께 보여준다.
+    const cellHtml = (v, byProductForDate) => {
       if(!v || (!v.qty && !v.amount)) return `<td class="zero">-</td>`;
-      return `<td><div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div><div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div></td>`;
+      const breakdownHtml = checkedList.length >= 2
+        ? checkedList.map(p => {
+            const q = (byProductForDate && byProductForDate[p]) || 0;
+            return `<div style="font-size:9px;color:#8fb8dd;white-space:nowrap;">${escLivePr_(p)} ${q.toLocaleString()}개</div>`;
+          }).join('')
+        : '';
+      return `<td>${breakdownHtml}<div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div><div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div></td>`;
     };
 
     const headerCells = dates.map(d =>
@@ -7404,7 +7415,7 @@ function isLivePrExcluded_(name){
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
         <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
-        ${dates.map(d => cellHtml(s.byDate[d.ymd])).join('')}
+        ${dates.map(d => cellHtml(s.byDate[d.ymd], s.byDateProduct[d.ymd])).join('')}
       </tr>`).join('');
 
     // 전 매장 합계 행 = 요청하신 "전 매장 기준 일별 판매량/금액"
@@ -7414,7 +7425,7 @@ function isLivePrExcluded_(name){
         <td></td>
         <td>${livePrQtyBreakdownHtml_(grandQty, totalByProduct, checkedList)}</td>
         <td>${grandAmount.toLocaleString()}</td>
-        ${dates.map(d => cellHtml(totalByDate[d.ymd])).join('')}
+        ${dates.map(d => cellHtml(totalByDate[d.ymd], totalByDateProduct[d.ymd])).join('')}
       </tr>`;
 
     const sortArrow = (key) => st.key === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
@@ -7503,6 +7514,7 @@ function isLivePrExcluded_(name){
 
     const byStore = {};
     const totalByMonth = {}; months.forEach(m => totalByMonth[m] = { qty: 0, amount: 0 });
+    const totalByMonthProduct = {}; months.forEach(m => totalByMonthProduct[m] = {});
     const totalByProduct = {};
     let grandQty = 0, grandAmount = 0;
 
@@ -7510,17 +7522,20 @@ function isLivePrExcluded_(name){
       const mKey = r.date.slice(0,6);
       if(!byStore[r.code]) byStore[r.code] = {
         code: r.code, name: r.name, manager: storeMetaMap[r.code].manager,
-        byMonth: {}, byProduct: {}, totalQty: 0, totalAmount: 0
+        byMonth: {}, byMonthProduct: {}, byProduct: {}, totalQty: 0, totalAmount: 0
       };
       const s = byStore[r.code];
       if(!s.byMonth[mKey]) s.byMonth[mKey] = { qty: 0, amount: 0 };
+      if(!s.byMonthProduct[mKey]) s.byMonthProduct[mKey] = {};
       s.byMonth[mKey].qty += r.qty;
       s.byMonth[mKey].amount += r.amount;
+      s.byMonthProduct[mKey][r.product] = (s.byMonthProduct[mKey][r.product] || 0) + r.qty;
       s.byProduct[r.product] = (s.byProduct[r.product] || 0) + r.qty;
       s.totalQty += r.qty;
       s.totalAmount += r.amount;
       totalByMonth[mKey].qty += r.qty;
       totalByMonth[mKey].amount += r.amount;
+      totalByMonthProduct[mKey][r.product] = (totalByMonthProduct[mKey][r.product] || 0) + r.qty;
       totalByProduct[r.product] = (totalByProduct[r.product] || 0) + r.qty;
       grandQty += r.qty;
       grandAmount += r.amount;
@@ -7533,10 +7548,17 @@ function isLivePrExcluded_(name){
       return st.dir * (a.totalAmount - b.totalAmount);
     });
 
-    // 월 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌
-    const cellHtml = (v) => {
+    // 월 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌.
+    // 상품을 2개 이상 체크했으면, 그 달의 상품별 낱개 수량도 위에 함께 보여준다.
+    const cellHtml = (v, byProductForMonth) => {
       if(!v || (!v.qty && !v.amount)) return `<td class="zero">-</td>`;
-      return `<td><div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div><div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div></td>`;
+      const breakdownHtml = checkedList.length >= 2
+        ? checkedList.map(p => {
+            const q = (byProductForMonth && byProductForMonth[p]) || 0;
+            return `<div style="font-size:9px;color:#8fb8dd;white-space:nowrap;">${escLivePr_(p)} ${q.toLocaleString()}개</div>`;
+          }).join('')
+        : '';
+      return `<td>${breakdownHtml}<div style="font-weight:600;color:#e0f0ff;">${v.qty.toLocaleString()}개</div><div style="font-size:10px;color:#8fb8dd;">${v.amount.toLocaleString()}원</div></td>`;
     };
 
     const headerCells = months.map(m =>
@@ -7549,7 +7571,7 @@ function isLivePrExcluded_(name){
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
         <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
-        ${months.map(m => cellHtml(s.byMonth[m])).join('')}
+        ${months.map(m => cellHtml(s.byMonth[m], s.byMonthProduct[m])).join('')}
       </tr>`).join('');
 
     // 전 매장 합계 행 = 전 매장 기준 월별 판매량/금액
@@ -7559,7 +7581,7 @@ function isLivePrExcluded_(name){
         <td></td>
         <td>${livePrQtyBreakdownHtml_(grandQty, totalByProduct, checkedList)}</td>
         <td>${grandAmount.toLocaleString()}</td>
-        ${months.map(m => cellHtml(totalByMonth[m])).join('')}
+        ${months.map(m => cellHtml(totalByMonth[m], totalByMonthProduct[m])).join('')}
       </tr>`;
 
     const sortArrow = (key) => st.key === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
