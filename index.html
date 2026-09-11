@@ -7258,6 +7258,20 @@ function isLivePrExcluded_(name){
       </div>`;
   };
 
+  // 체크박스로 여러 상품을 함께 선택했을 때, 합계수량 칸에 상품별 낱개 판매량과
+  // 전체 합계를 같이 보여주기 위한 공용 헬퍼. 선택된 상품이 1개 이하면 기존처럼
+  // 숫자만 보여준다.
+  function livePrQtyBreakdownHtml_(totalQty, byProduct, checkedList){
+    if(!checkedList || checkedList.length < 2){
+      return `${totalQty.toLocaleString()}개`;
+    }
+    const lines = checkedList.map(p => {
+      const q = (byProduct && byProduct[p]) || 0;
+      return `<div style="font-size:10px;color:#8fb8dd;white-space:nowrap;">${escLivePr_(p)} ${q.toLocaleString()}개</div>`;
+    }).join('');
+    return `${lines}<div style="font-weight:600;color:#e0f0ff;margin-top:2px;">총 ${totalQty.toLocaleString()}개</div>`;
+  }
+
   // ── 🏷️ 상품별 매출: "일별 보기" 모드 ──────────────────────────────
   // 합계보기(기존)는 매장×상품별 전체 기간 합계 한 줄, 일별보기는 매장별로 날짜별 컬럼을 펼쳐서
   // 하루하루의 수량/금액을 함께 보여주고, 맨 위 "전 매장 합계" 행에서 전 매장 기준 일별 합계도 보여준다.
@@ -7323,6 +7337,7 @@ function isLivePrExcluded_(name){
     const storeQ = (document.getElementById('livePrStoreSearch').value || '').trim();
     const prodQ = (document.getElementById('livePrProductSearch').value || '').trim();
     const checkedProducts = window.__livePrCheckedProducts || new Set();
+    const checkedList = Array.from(checkedProducts); // 낱개 판매량을 표시할 상품 순서
 
     const allowedCodes = new Set(storeMetaList
       .filter(s => managerVal === 'all' || s.manager === managerVal)
@@ -7344,21 +7359,24 @@ function isLivePrExcluded_(name){
 
     const byStore = {};
     const totalByDate = {}; dates.forEach(d => totalByDate[d.ymd] = { qty: 0, amount: 0 });
+    const totalByProduct = {};
     let grandQty = 0, grandAmount = 0;
 
     rows.forEach(r => {
       if(!byStore[r.code]) byStore[r.code] = {
         code: r.code, name: r.name, manager: storeMetaMap[r.code].manager,
-        byDate: {}, totalQty: 0, totalAmount: 0
+        byDate: {}, byProduct: {}, totalQty: 0, totalAmount: 0
       };
       const s = byStore[r.code];
       if(!s.byDate[r.date]) s.byDate[r.date] = { qty: 0, amount: 0 };
       s.byDate[r.date].qty += r.qty;
       s.byDate[r.date].amount += r.amount;
+      s.byProduct[r.product] = (s.byProduct[r.product] || 0) + r.qty;
       s.totalQty += r.qty;
       s.totalAmount += r.amount;
       totalByDate[r.date].qty += r.qty;
       totalByDate[r.date].amount += r.amount;
+      totalByProduct[r.product] = (totalByProduct[r.product] || 0) + r.qty;
       grandQty += r.qty;
       grandAmount += r.amount;
     });
@@ -7384,7 +7402,7 @@ function isLivePrExcluded_(name){
       <tr>
         <td style="text-align:center;">${s.name}</td>
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
-        <td>${s.totalQty.toLocaleString()}개</td>
+        <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
         ${dates.map(d => cellHtml(s.byDate[d.ymd])).join('')}
       </tr>`).join('');
@@ -7394,7 +7412,7 @@ function isLivePrExcluded_(name){
       <tr class="total-row">
         <td>전 매장 합계 (${storeRows.length}개)</td>
         <td></td>
-        <td>${grandQty.toLocaleString()}개</td>
+        <td>${livePrQtyBreakdownHtml_(grandQty, totalByProduct, checkedList)}</td>
         <td>${grandAmount.toLocaleString()}</td>
         ${dates.map(d => cellHtml(totalByDate[d.ymd])).join('')}
       </tr>`;
@@ -7404,14 +7422,18 @@ function isLivePrExcluded_(name){
       `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.livePrDailySortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
 
     // 엑셀 다운로드용 캐시: 화면과 동일하게 날짜별 수량/금액을 나란히
+    // 상품을 2개 이상 체크했으면, 합계수량 뒤에 상품별 수량 컬럼도 각각 추가
+    const prodQtyHeaders = checkedList.length >= 2 ? checkedList.map(p => `${p} 수량`) : [];
     window.__liveExportCache = window.__liveExportCache || {};
     window.__liveExportCache.productDaily = {
-      header: ['매장명','담당자','합계수량','합계금액',
+      header: ['매장명','담당자','합계수량', ...prodQtyHeaders, '합계금액',
         ...dates.flatMap(d => [`${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]}) 수량`, `${d.ymd.slice(0,4)}-${d.ymd.slice(4,6)}-${d.ymd.slice(6,8)}(${WD[d.wd]}) 금액`])],
       rows: [
-        ['전 매장 합계', '', grandQty, grandAmount,
+        ['전 매장 합계', '', grandQty,
+          ...checkedList.map(p => totalByProduct[p] || 0), grandAmount,
           ...dates.flatMap(d => [totalByDate[d.ymd].qty, totalByDate[d.ymd].amount])],
-        ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty, s.totalAmount,
+        ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty,
+          ...checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0), s.totalAmount,
           ...dates.flatMap(d => [(s.byDate[d.ymd]||{}).qty||0, (s.byDate[d.ymd]||{}).amount||0])])
       ]
     };
@@ -7460,6 +7482,7 @@ function isLivePrExcluded_(name){
     const storeQ = (document.getElementById('livePrStoreSearch').value || '').trim();
     const prodQ = (document.getElementById('livePrProductSearch').value || '').trim();
     const checkedProducts = window.__livePrCheckedProducts || new Set();
+    const checkedList = Array.from(checkedProducts); // 낱개 판매량을 표시할 상품 순서
 
     const allowedCodes = new Set(storeMetaList
       .filter(s => managerVal === 'all' || s.manager === managerVal)
@@ -7480,22 +7503,25 @@ function isLivePrExcluded_(name){
 
     const byStore = {};
     const totalByMonth = {}; months.forEach(m => totalByMonth[m] = { qty: 0, amount: 0 });
+    const totalByProduct = {};
     let grandQty = 0, grandAmount = 0;
 
     rows.forEach(r => {
       const mKey = r.date.slice(0,6);
       if(!byStore[r.code]) byStore[r.code] = {
         code: r.code, name: r.name, manager: storeMetaMap[r.code].manager,
-        byMonth: {}, totalQty: 0, totalAmount: 0
+        byMonth: {}, byProduct: {}, totalQty: 0, totalAmount: 0
       };
       const s = byStore[r.code];
       if(!s.byMonth[mKey]) s.byMonth[mKey] = { qty: 0, amount: 0 };
       s.byMonth[mKey].qty += r.qty;
       s.byMonth[mKey].amount += r.amount;
+      s.byProduct[r.product] = (s.byProduct[r.product] || 0) + r.qty;
       s.totalQty += r.qty;
       s.totalAmount += r.amount;
       totalByMonth[mKey].qty += r.qty;
       totalByMonth[mKey].amount += r.amount;
+      totalByProduct[r.product] = (totalByProduct[r.product] || 0) + r.qty;
       grandQty += r.qty;
       grandAmount += r.amount;
     });
@@ -7521,7 +7547,7 @@ function isLivePrExcluded_(name){
       <tr>
         <td style="text-align:center;">${s.name}</td>
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
-        <td>${s.totalQty.toLocaleString()}개</td>
+        <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
         ${months.map(m => cellHtml(s.byMonth[m])).join('')}
       </tr>`).join('');
@@ -7531,7 +7557,7 @@ function isLivePrExcluded_(name){
       <tr class="total-row">
         <td>전 매장 합계 (${storeRows.length}개)</td>
         <td></td>
-        <td>${grandQty.toLocaleString()}개</td>
+        <td>${livePrQtyBreakdownHtml_(grandQty, totalByProduct, checkedList)}</td>
         <td>${grandAmount.toLocaleString()}</td>
         ${months.map(m => cellHtml(totalByMonth[m])).join('')}
       </tr>`;
@@ -7541,14 +7567,18 @@ function isLivePrExcluded_(name){
       `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.livePrMonthlySortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
 
     // 엑셀 다운로드용 캐시: 화면과 동일하게 월별 수량/금액을 나란히
+    // 상품을 2개 이상 체크했으면, 합계수량 뒤에 상품별 수량 컬럼도 각각 추가
+    const prodQtyHeaders = checkedList.length >= 2 ? checkedList.map(p => `${p} 수량`) : [];
     window.__liveExportCache = window.__liveExportCache || {};
     window.__liveExportCache.productMonthly = {
-      header: ['매장명','담당자','합계수량','합계금액',
+      header: ['매장명','담당자','합계수량', ...prodQtyHeaders, '합계금액',
         ...months.flatMap(m => [`${m.slice(0,4)}-${m.slice(4,6)} 수량`, `${m.slice(0,4)}-${m.slice(4,6)} 금액`])],
       rows: [
-        ['전 매장 합계', '', grandQty, grandAmount,
+        ['전 매장 합계', '', grandQty,
+          ...checkedList.map(p => totalByProduct[p] || 0), grandAmount,
           ...months.flatMap(m => [totalByMonth[m].qty, totalByMonth[m].amount])],
-        ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty, s.totalAmount,
+        ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty,
+          ...checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0), s.totalAmount,
           ...months.flatMap(m => [(s.byMonth[m]||{}).qty||0, (s.byMonth[m]||{}).amount||0])])
       ]
     };
