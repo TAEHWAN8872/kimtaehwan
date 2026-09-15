@@ -7445,13 +7445,13 @@ function isLivePrExcluded_(name){
         ])],
       rows: [
         ['전 매장 합계', '', grandQty,
-          ...checkedList.map(p => totalByProduct[p] || 0), grandAmount,
+          ...(checkedList.length >= 2 ? checkedList.map(p => totalByProduct[p] || 0) : []), grandAmount,
           ...dates.flatMap(d => [
             ...(checkedList.length >= 2 ? checkedList.map(p => (totalByDateProduct[d.ymd] || {})[p] || 0) : []),
             totalByDate[d.ymd].qty, totalByDate[d.ymd].amount
           ])],
         ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty,
-          ...checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0), s.totalAmount,
+          ...(checkedList.length >= 2 ? checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0) : []), s.totalAmount,
           ...dates.flatMap(d => [
             ...(checkedList.length >= 2 ? checkedList.map(p => ((s.byDateProduct[d.ymd] || {})[p]) || 0) : []),
             (s.byDate[d.ymd]||{}).qty||0, (s.byDate[d.ymd]||{}).amount||0
@@ -7611,13 +7611,13 @@ function isLivePrExcluded_(name){
         ])],
       rows: [
         ['전 매장 합계', '', grandQty,
-          ...checkedList.map(p => totalByProduct[p] || 0), grandAmount,
+          ...(checkedList.length >= 2 ? checkedList.map(p => totalByProduct[p] || 0) : []), grandAmount,
           ...months.flatMap(m => [
             ...(checkedList.length >= 2 ? checkedList.map(p => (totalByMonthProduct[m] || {})[p] || 0) : []),
             totalByMonth[m].qty, totalByMonth[m].amount
           ])],
         ...storeRows.map(s => [s.name, s.manager || '-', s.totalQty,
-          ...checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0), s.totalAmount,
+          ...(checkedList.length >= 2 ? checkedList.map(p => (s.byProduct && s.byProduct[p]) || 0) : []), s.totalAmount,
           ...months.flatMap(m => [
             ...(checkedList.length >= 2 ? checkedList.map(p => ((s.byMonthProduct[m] || {})[p]) || 0) : []),
             (s.byMonth[m]||{}).qty||0, (s.byMonth[m]||{}).amount||0
