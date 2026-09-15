@@ -688,6 +688,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <button class="live-refresh-btn" onclick="window.loadLivePeriod()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLivePeriodExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePdSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePeriodTable()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLivePeriod();}"
           class="live-input" style="min-width:180px;">
         <label>담당자</label>
         <select id="livePdManagerSel" class="live-input" onchange="window.renderLivePeriodTable()">
@@ -735,6 +736,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <button class="live-refresh-btn" onclick="window.loadLiveProduct(true)" title="원본 데이터를 다시 받아와서 최신 동기화 시각으로 갱신합니다 (66MB, 시간이 조금 더 걸려요)">🔃 최신 데이터로 새로고침</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveProductExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePrStoreSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePrCurrentView()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveProduct();}"
           class="live-input" style="min-width:160px;">
         <label>담당자</label>
         <select id="livePrManagerSel" class="live-input" onchange="window.renderLivePrCurrentView()">
@@ -776,6 +778,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveSummaryExcel()">⬇️ 엑셀 다운로드</button>
         <input id="liveSmSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveSummaryTable()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveSummary();}"
           class="live-input" style="min-width:180px;">
         <label>담당자</label>
         <select id="liveSmManagerSel" class="live-input" onchange="window.renderLiveSummaryTable()">
