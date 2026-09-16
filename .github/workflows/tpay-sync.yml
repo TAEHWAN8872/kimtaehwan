@@ -120,6 +120,11 @@ jobs:
         env:
           TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
         run: node scripts/product-daily-update.js
+      - name: 시간대별 매출 갱신 실행 (스케줄 or 수동-daily)
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+        run: node scripts/hour-update.js
       - name: 상품분류 매핑 갱신 (매일 1회 스케줄 or 수동-product-category)
         if: github.event.schedule == '0 18 * * *' || github.event.inputs.mode == 'product-category'
         env:
@@ -222,6 +227,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/live-daily.json data/product-daily.json data/receipt-today.json
           if [ -f data/product-category.json ]; then git add data/product-category.json; fi
+          if [ -d data/hour ]; then git add data/hour/*.json; fi
           if git diff --cached --quiet; then
             echo "변경 없음, 커밋 생략"
           else
