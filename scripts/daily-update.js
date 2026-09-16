@@ -96,6 +96,7 @@ function groupItemsBySaNo_(rows) {
       SC_QTY: Number(r.SC_QTY || 0),      // 수량
       SC_AMT_TTL: Number(r.SC_AMT_TTL || 0), // 라인 금액
       SC_FORM: r.SC_FORM,                 // O:첫주문/A:추가주문/D:취소/C:반품
+      OPTION_GBN: r.OPTION_GBN,           // S: 세트구성품 (시간대별 매출 집계에서 제외용, hour-update.js가 사용)
     });
   }
   return byNo;
