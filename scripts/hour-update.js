@@ -1,42 +1,39 @@
 // scripts/hour-update.js
-// 매번(예: 2시간마다, daily-update.js/product-daily-update.js와 같은 스케줄) 실행되는
-// 스크립트. "오늘" 하루치 시간대별(1시간 단위) 상품 판매 데이터를 다시 받아서
-// 월별 파일 data/hour/hour-YYYYMM.json에 병합합니다.
+// 매번(daily-update.js와 같은 스케줄) 실행되는 스크립트. "오늘" 하루치
+// 시간대별(1시간 단위) 상품 판매 데이터를 월별 파일 data/hour/hour-YYYYMM.json에
+// 병합합니다.
 //
-// [왜 별도 스크립트인가]
-// 시간대별 매출은 REQ_CODE 3(매출정보 마스터, 주문에 SA_DT=시각 포함)과
-// REQ_CODE 6(주문내역, 상품별 라인)을 SA_NO로 조인해야 나옵니다. 이미
-// daily-update.js/product-daily-update.js도 각자 REQ_CODE 3·6을 따로 호출하고
-// 있어서(스크립트별 독립 상태를 유지하는 이 프로젝트의 기존 패턴), 이 스크립트도
-// 같은 방식으로 독립적으로 호출·누적합니다.
+// [2026-09-16 변경: API 재호출 방식 폐기 → data/live-daily.json 재사용으로 전환]
+// 처음에는 이 스크립트가 자체적으로 REQ_CODE 3(주문)·REQ_CODE 6(품목)을 다시
+// 호출했는데, 실제로 돌려보니 같은 매장·날짜로 daily-update.js(1번째) →
+// product-daily-update.js(2번째)에 이어 세 번째로 REQ_CODE 6을 호출하자 154개
+// 매장 전부에서 품목이 0건 매칭되는 현상이 확인됐다(2026-09-16 실측). 같은 요청을
+// 짧은 시간에 반복 호출하면 일부만 누락되는 정도가 아니라 통째로 빈 응답을 주는
+// 것으로 보인다.
 //
-// [중요한 한계] REQ_CODE 3/6은 스펙상 "하루치만" 조회되고, 정산 확정 리포트
-// (REQ_CODE 4/5)에는애초에 시간 정보가 없습니다. 즉 이 스크립트가 실행되기
-// 시작한 시점부터의 데이터만 쌓이고, 과거 날짜는 백필이 불가능합니다.
+// 그런데 daily-update.js는 이미 REQ_CODE 3 주문(SA_DT=시각 포함)과 REQ_CODE 6
+// 품목을 SA_NO로 조인해서 store.todayRaw.ordersByNo / itemsByNo에 저장해두고,
+// 그 결과를 data/live-daily.json에 그대로 커밋한다. 이 스크립트는 daily-update.js
+// 바로 다음 스텝으로 실행되므로(같은 GitHub Actions job = 같은 체크아웃 디렉토리),
+// API를 다시 부르지 않고 그 파일을 그대로 읽어서 재사용한다. 즉 이 스크립트는
+// TPAY_TOKEN도, 네트워크 호출도 필요 없는 순수 로컬 변환 스크립트다.
 //
-// [누적 병합 방식] daily-update.js/product-daily-update.js와 동일한 이유(REQ_CODE
-// 3/6이 같은 요청에도 시점에 따라 일부를 누락해서 응답하는 현상이 실측 확인됨)로,
-// stores[code].todayRaw에 "오늘" 하루 동안 받은 주문(ordersByNo, SA_NO 키)과
-// 품목 라인(itemLinesByKey, SA_NO+SC_NO 키)을 계속 누적한 뒤, 매 회차 그 누적본
-// 전체를 기준으로 시간대별 상품 집계를 다시 계산합니다. 날짜가 바뀌면
-// (todayRaw.date !== today) 누적을 초기화합니다.
+// [중요한 한계] daily-update.js의 todayRaw는 "오늘" 하루치만 유지되므로(날짜가
+// 바뀌면 초기화), 이 스크립트도 "오늘" 하루치 시간대만 매번 다시 계산해서 채운다.
+// 과거 날짜의 시간대별 데이터는 애초에 tpay 정산 확정 리포트(REQ_CODE 4/5)에
+// 시간 정보가 없어 만들 수 없다 — 이 스크립트가 매일 실행되기 시작한 시점부터
+// 데이터가 쌓인다.
 //
 // [저장 포맷] 용량 절약을 위해 상품명은 월별 파일 전체가 공유하는 PRODUCTS
-// 배열의 인덱스로 저장합니다. 매장별 rows는 [일(1~31), 시(0~23), 상품인덱스,
-// 수량, 금액] 압축 배열입니다.
+// 배열의 인덱스로 저장한다. 매장별 rows는 [일(1~31), 시(0~23), 상품인덱스,
+// 수량, 금액] 압축 배열이다.
 
 const fs = require('fs');
 const path = require('path');
-const {
-  kstDateString,
-  sleep,
-  fetchOneStoreRealtimeWithOrders,
-  fetchOneStoreOrderDetail,
-  aggregateOrdersAndItemsToHourProducts,
-} = require('./lib');
+const { kstDateString, aggregateOrdersAndItemsToHourProducts } = require('./lib');
 
+const LIVE_DATA_PATH = path.join(__dirname, '..', 'data', 'live-daily.json');
 const HOUR_DIR = path.join(__dirname, '..', 'data', 'hour');
-const STORE_MAP_PATH = path.join(__dirname, '..', 'data', 'store-map.json');
 
 function hourPath_(ym) {
   return path.join(HOUR_DIR, `hour-${ym}.json`);
@@ -56,36 +53,6 @@ function loadExistingMonth_(ym) {
   }
 }
 
-// 날짜가 바뀌었으면 초기화, 같은 날이면 기존 누적값 재사용
-function loadTodayRaw_(prev, today) {
-  if (prev && prev.todayRaw && prev.todayRaw.date === today) {
-    return {
-      date: today,
-      ordersByNo: { ...(prev.todayRaw.ordersByNo || {}) },
-      itemLinesByKey: { ...(prev.todayRaw.itemLinesByKey || {}) },
-    };
-  }
-  return { date: today, ordersByNo: {}, itemLinesByKey: {} };
-}
-
-// REQ_CODE 6 원본 라인 배열을 SA_NO + (SC_NO 또는 같은 주문 내 등장 순서)로
-// 고유 키를 만들어 todayRaw.itemLinesByKey에 병합한다.
-// (product-daily-update.js의 mergeRawRowsByKey_와 동일한 키 구성 방식)
-function mergeItemLines_(todayRaw, rows) {
-  const seenPerSaNo = {};
-  for (const r of rows) {
-    const saNo = String(r.SA_NO);
-    let lineKey;
-    if (r.SC_NO !== undefined && r.SC_NO !== null && r.SC_NO !== '') {
-      lineKey = `${saNo}_${r.SC_NO}`;
-    } else {
-      seenPerSaNo[saNo] = (seenPerSaNo[saNo] || 0) + 1;
-      lineKey = `${saNo}_idx${seenPerSaNo[saNo]}`;
-    }
-    todayRaw.itemLinesByKey[lineKey] = r;
-  }
-}
-
 // 상품명 -> 인덱스. 없으면 PRODUCTS 배열 끝에 추가(기존 인덱스는 절대 바꾸지 않음).
 function productIndex_(productsArr, indexMap, name) {
   if (indexMap[name] !== undefined) return indexMap[name];
@@ -95,11 +62,24 @@ function productIndex_(productsArr, indexMap, name) {
   return idx;
 }
 
-async function main() {
-  const token = process.env.TPAY_TOKEN;
-  if (!token) throw new Error('TPAY_TOKEN 환경변수가 없습니다.');
+// daily-update.js가 저장한 itemsByNo({ [SA_NO]: [{CMDT_NM,SC_QTY,SC_AMT_TTL,SC_FORM,OPTION_GBN}] })를
+// SA_NO 필드가 각 라인에 실려있는 평평한 배열로 펼친다 (lib.aggregateOrdersAndItemsToHourProducts가
+// 받는 rawItemRows 형태에 맞추기 위함).
+function flattenItemsByNo_(itemsByNo) {
+  const rows = [];
+  for (const [saNo, items] of Object.entries(itemsByNo || {})) {
+    for (const it of items) rows.push({ ...it, SA_NO: saNo });
+  }
+  return rows;
+}
 
-  const storeMap = JSON.parse(fs.readFileSync(STORE_MAP_PATH, 'utf8')); // [[name, code], ...]
+function main() {
+  if (!fs.existsSync(LIVE_DATA_PATH)) {
+    throw new Error(`${LIVE_DATA_PATH}가 없습니다. daily-update.js를 먼저 실행해주세요.`);
+  }
+  const live = JSON.parse(fs.readFileSync(LIVE_DATA_PATH, 'utf8'));
+  const liveStores = live.STORES || {};
+
   const today = kstDateString(0);
   const ym = today.slice(0, 6);
   const todayDay = Number(today.slice(6, 8));
@@ -112,46 +92,19 @@ async function main() {
   const prevStores = existing.STORES || {};
   const stores = { ...prevStores };
 
-  console.log(`시간대별 매출 갱신 시작(누적 병합): ${today}, 매장 ${storeMap.length}개`);
-
-  const failed = [];
-  let successCount = 0;
+  let updatedCount = 0;
+  let skippedNoTodayRaw = 0;
   let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0;
 
-  for (let i = 0; i < storeMap.length; i++) {
-    const [name, code] = storeMap[i];
-    const prev = stores[code] || { name, rows: [] };
-    const todayRaw = loadTodayRaw_(prev, today);
-
-    const orderResult = await fetchOneStoreRealtimeWithOrders(token, code, today);
-
-    if (orderResult.error) {
-      failed.push(`${code}(${name}) 주문조회: ${orderResult.error}`);
-      if (!stores[code]) stores[code] = { name, rows: [] };
-      if (stores[code] && !stores[code].todayRaw) stores[code].todayRaw = todayRaw;
-      if (i < storeMap.length - 1) await sleep(150);
-      continue;
+  for (const [code, s] of Object.entries(liveStores)) {
+    const todayRaw = s.todayRaw;
+    if (!todayRaw || todayRaw.date !== today) {
+      skippedNoTodayRaw++;
+      continue; // 오늘자 원본이 없는 매장(이번 회차 fetch 실패 등) — 기존 hour 데이터 그대로 유지
     }
 
-    // 이번 회차 주문을 SA_NO 기준으로 누적 병합 (시간/영업일 계산에 필요한 필드만 저장)
-    for (const o of orderResult.orders) {
-      todayRaw.ordersByNo[String(o.SA_NO)] = { SA_NO: o.SA_NO, SA_DT: o.SA_DT, SDA_DT: o.SDA_DT };
-    }
-
-    // 주문이 있는 매장만 품목 상세(REQ_CODE 6) 조회 (불필요한 API 호출 절약)
-    if (orderResult.orders.length > 0) {
-      const detail = await fetchOneStoreOrderDetail(token, code, today);
-      if (detail.error) {
-        failed.push(`${code}(${name}) 품목조회: ${detail.error}`);
-        // 품목상세만 실패 — 이전 회차에 캐시된 라인 그대로 사용
-      } else {
-        mergeItemLines_(todayRaw, detail.rows || []);
-      }
-    }
-
-    // 지금까지 누적된 전체(주문+품목)로 오늘자 시간대별 상품 집계를 다시 계산
-    const mergedOrders = Object.values(todayRaw.ordersByNo);
-    const mergedItemRows = Object.values(todayRaw.itemLinesByKey);
+    const mergedOrders = Object.values(todayRaw.ordersByNo || {});
+    const mergedItemRows = flattenItemsByNo_(todayRaw.itemsByNo);
     const { rows: hourRows, matchedOrders, skippedNoTime, skippedNoItems } =
       aggregateOrdersAndItemsToHourProducts(mergedOrders, mergedItemRows);
     totalMatchedOrders += matchedOrders;
@@ -162,15 +115,10 @@ async function main() {
       .filter((r) => r.SDA_DT === today)
       .map((r) => [todayDay, r.hour, productIndex_(products, productIndexMap, r.CMDT_NM), r.qty, r.amount]);
 
+    const prev = stores[code] || { name: s.name, rows: [] };
     const prevRows = (prev.rows || []).filter((r) => r[0] !== todayDay);
-    stores[code] = {
-      name,
-      rows: [...prevRows, ...todayCompactRows],
-      todayRaw,
-    };
-    successCount++;
-
-    if (i < storeMap.length - 1) await sleep(150);
+    stores[code] = { name: s.name, rows: [...prevRows, ...todayCompactRows] };
+    updatedCount++;
   }
 
   const output = {
@@ -178,21 +126,16 @@ async function main() {
     PRODUCTS: products,
     STORES: stores,
     updatedAt: new Date().toISOString(),
-    lastRunType: 'daily',
-    lastRunFailedCount: failed.length,
   };
 
   fs.mkdirSync(HOUR_DIR, { recursive: true });
   fs.writeFileSync(hourPath_(ym), JSON.stringify(output));
 
   console.log(
-    `시간대별 갱신 완료: 성공 ${successCount}개 / 실패 ${failed.length}개 / ` +
-    `매칭된 주문 ${totalMatchedOrders}건 / 시각없음 제외 ${totalSkippedNoTime}건 / 품목상세 대기중 ${totalSkippedNoItems}건`
+    `시간대별 매출 갱신 완료(data/live-daily.json 재사용): ${today}, ` +
+    `갱신 ${updatedCount}개 매장 / 오늘자 원본 없어 건너뜀 ${skippedNoTodayRaw}개 / ` +
+    `매칭된 주문 ${totalMatchedOrders}건 / 시각없음 제외 ${totalSkippedNoTime}건 / 품목상세 없음 ${totalSkippedNoItems}건`
   );
-  if (failed.length) console.log('실패 내역:\n' + failed.join('\n'));
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main();
