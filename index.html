@@ -609,6 +609,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div class="live-subtab" id="liveSubTab-receipt" onclick="window.switchLiveSubTab('receipt')">🧾 일판매 매출</div>
       <div class="live-subtab" id="liveSubTab-period" onclick="window.switchLiveSubTab('period')">📅 기간별 매출</div>
       <div class="live-subtab" id="liveSubTab-product" onclick="window.switchLiveSubTab('product')">🏷️ 상품별 매출</div>
+      <div class="live-subtab" id="liveSubTab-hour" onclick="window.switchLiveSubTab('hour')">⏰ 시간대별 매출</div>
       <div class="live-subtab" id="liveSubTab-summary" onclick="window.switchLiveSubTab('summary')">🧮 매출정리</div>
     </div>
 
@@ -751,6 +752,54 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div id="livePrDailyTableWrap" style="display:none;"></div>
       <div id="livePrMonthlyTableWrap" style="display:none;"></div>
       <div id="livePrAllTableWrap" style="display:none;"></div>
+    </div>
+
+
+    <!-- ⏰ 시간대별 매출: 1시간 단위(00시~01시 … 23시~24시) 매출, 매장별/일별/월별 -->
+    <div id="liveHourSection" style="display:none;">
+      <div class="live-toolbar">
+        <label>보기</label>
+        <select id="liveHrViewMode" class="live-input" onchange="window.switchLiveHrViewMode()">
+          <option value="store">매장별</option>
+          <option value="day">일별</option>
+          <option value="month">월별</option>
+        </select>
+        <span id="liveHrDateWrap">
+          <label>시작일</label>
+          <input id="liveHrStartDate" type="date" class="live-input">
+          <label>종료일</label>
+          <input id="liveHrEndDate" type="date" class="live-input">
+        </span>
+        <span id="liveHrMonthWrap" style="display:none;">
+          <label>시작월</label>
+          <input id="liveHrStartMonth" type="month" class="live-input">
+          <label>종료월</label>
+          <input id="liveHrEndMonth" type="month" class="live-input">
+        </span>
+        <label>표시</label>
+        <select id="liveHrMetric" class="live-input" onchange="window.renderLiveHourTable()">
+          <option value="amount">매출액</option>
+          <option value="both">매출액+수량</option>
+          <option value="qty">판매수량</option>
+        </select>
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="liveHrHideEmpty" checked onchange="window.renderLiveHourTable()"> 매출 없는 시간대 숨기기
+        </label>
+        <button class="live-refresh-btn" onclick="window.loadLiveHour()">🔄 조회</button>
+        <button class="live-refresh-btn" onclick="window.downloadLiveHourExcel()">⬇️ 엑셀 다운로드</button>
+        <input id="liveHrSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveHourTable()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveHour();}"
+          class="live-input" style="min-width:160px;">
+        <label>담당자</label>
+        <select id="liveHrManagerSel" class="live-input" onchange="window.renderLiveHourTable()">
+          <option value="all">전체</option>
+        </select>
+        <span id="liveHrUpdatedAt" class="live-updated-at"></span>
+      </div>
+      <div id="liveHrLoading" class="live-loading" style="display:none;">
+        <span class="spin"></span>시간대별 매출 데이터를 가져오는 중입니다...
+      </div>
+      <div id="liveHrTableWrap"></div>
     </div>
 
     <!-- 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 총매출 (월별 또는 기간별) -->
@@ -1799,6 +1848,16 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
     <div class="modal-title store-name" id="liveRcItemModalTitle">-</div>
     <div class="modal-sub" id="liveRcItemModalSub" style="margin-bottom:14px;">품목별 상세</div>
     <div id="liveRcItemModalBody" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>
+
+<!-- 시간대별 매출: 시간대 칸 클릭 시 상품 상세 모달 -->
+<div class="modal-overlay" id="liveHrDetailModal" style="z-index:4600;">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" onclick="window.closeLiveHrDetailModal()">✕</button>
+    <div class="modal-title store-name" id="liveHrDetailTitle">-</div>
+    <div class="modal-sub" id="liveHrDetailSub" style="margin-bottom:14px;">시간대별 판매 상품</div>
+    <div id="liveHrDetailBody" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
 
@@ -5354,11 +5413,13 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     document.getElementById('liveReceiptSection').style.display = (sub==='receipt') ? '' : 'none';
     document.getElementById('livePeriodSection').style.display = (sub==='period') ? '' : 'none';
     document.getElementById('liveProductSection').style.display = (sub==='product') ? '' : 'none';
+    document.getElementById('liveHourSection').style.display = (sub==='hour') ? '' : 'none';
     document.getElementById('liveSummarySection').style.display = (sub==='summary') ? '' : 'none';
     document.getElementById('liveSubTab-realtime').classList.toggle('active', sub==='realtime');
     document.getElementById('liveSubTab-receipt').classList.toggle('active', sub==='receipt');
     document.getElementById('liveSubTab-period').classList.toggle('active', sub==='period');
     document.getElementById('liveSubTab-product').classList.toggle('active', sub==='product');
+    document.getElementById('liveSubTab-hour').classList.toggle('active', sub==='hour');
     document.getElementById('liveSubTab-summary').classList.toggle('active', sub==='summary');
     if(sub==='realtime' && !window.__liveRtData){ window.loadLiveRealtime(); }
     if(sub==='receipt' && !window.__liveRcData){ window.loadLiveReceipt(); }
@@ -5376,6 +5437,16 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       // 상품별 매출 첫 진입 시 기본값: 이번 달 1일 ~ 오늘 (조회는 사용자가 직접 눌러야 실행)
       const startInput = document.getElementById('livePrStartDate');
       const endInput = document.getElementById('livePrEndDate');
+      if(!startInput.value){
+        const now = new Date();
+        startInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      }
+      if(!endInput.value) endInput.value = ymdToInputDate_(todayYmd_());
+    }
+    if(sub==='hour'){
+      // 시간대별 매출 첫 진입 시 기본값: 이번 달 1일 ~ 오늘 (조회는 사용자가 직접 눌러야 실행)
+      const startInput = document.getElementById('liveHrStartDate');
+      const endInput = document.getElementById('liveHrEndDate');
       if(!startInput.value){
         const now = new Date();
         startInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -5744,6 +5815,348 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.downloadLiveSummaryExcel = function(){
     downloadLiveTableExcel_('summary', '매출정리', '매출정리');
   };
+
+  // ══════════════════════════════════════════════════════════
+  //  ⏰ 시간대별 매출 (1시간 단위)
+  //  데이터: data/hour/hour-YYYYMM.json  (월별 분할 파일)
+  //  포맷: { YM, updatedAt, PRODUCTS:[상품명...],
+  //          STORES: { 매장코드: { name, rows: [[일(dd), 시(0~23), 상품index, 수량, 금액], ...] } } }
+  //  - rows는 "매장 × 날짜 × 시간대 × 상품" 단위라서, 시간대 합계는 화면에서 합산해 만든다.
+  //  - 시간대 셀을 클릭하면 같은 조건의 rows를 다시 훑어서 상품별 상세를 보여준다.
+  // ══════════════════════════════════════════════════════════
+  const HOUR_DATA_BASE = 'https://raw.githubusercontent.com/TAEHWAN8872/bokhodu-dashboard/main/data/hour';
+  window.__liveHrMonthCache = {};   // YM -> 월별 원본(없으면 null)
+  window.__liveHrData = null;       // 현재 조회된 월 데이터 배열
+  window.__liveHrPeriod = null;     // { start, end } yyyymmdd
+  window.__liveHrMissing = [];      // 파일이 아직 없는 월 목록
+
+  function hrMonthsBetween_(start, end){
+    const out = [];
+    let y = +start.slice(0,4), m = +start.slice(4,6);
+    const ey = +end.slice(0,4), em = +end.slice(4,6);
+    while(y < ey || (y === ey && m <= em)){
+      out.push(`${y}${String(m).padStart(2,'0')}`);
+      m++; if(m > 12){ m = 1; y++; }
+    }
+    return out;
+  }
+
+  // 00시~01시 ... 23시~24시
+  function hrHourLabel_(h){ return `${String(h).padStart(2,'0')}시~${String(h+1).padStart(2,'0')}시`; }
+
+  async function fetchHourMonth_(ym){
+    if(window.__liveHrMonthCache[ym] !== undefined) return window.__liveHrMonthCache[ym];
+    try {
+      const res = await fetch(`${HOUR_DATA_BASE}/hour-${ym}.json?_=${Date.now()}`);
+      if(!res.ok){ window.__liveHrMonthCache[ym] = null; return null; }
+      const raw = await res.json();
+      window.__liveHrMonthCache[ym] = raw;
+      return raw;
+    } catch(err){
+      window.__liveHrMonthCache[ym] = null;
+      return null;
+    }
+  }
+
+  // ⏰ 시간대별 매출: 보기(매장별/일별/월별) 전환 — 날짜 입력 ↔ 월 입력
+  window.switchLiveHrViewMode = function(){
+    const mode = document.getElementById('liveHrViewMode').value;
+    document.getElementById('liveHrDateWrap').style.display = (mode === 'month') ? 'none' : '';
+    document.getElementById('liveHrMonthWrap').style.display = (mode === 'month') ? '' : 'none';
+    if(mode === 'month'){
+      const sM = document.getElementById('liveHrStartMonth');
+      const eM = document.getElementById('liveHrEndMonth');
+      const now = new Date();
+      if(!sM.value){
+        const sD = document.getElementById('liveHrStartDate').value;
+        sM.value = sD ? sD.slice(0,7) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      }
+      if(!eM.value){
+        const eD = document.getElementById('liveHrEndDate').value;
+        eM.value = eD ? eD.slice(0,7) : sM.value;
+      }
+    }
+    if(window.__liveHrData) window.renderLiveHourTable();
+  };
+
+  function getLiveHrRange_(){
+    const mode = document.getElementById('liveHrViewMode').value;
+    if(mode === 'month'){
+      const s = document.getElementById('liveHrStartMonth').value;
+      const e = document.getElementById('liveHrEndMonth').value;
+      if(!s || !e){ alert('시작월과 종료월을 모두 선택해주세요.'); return null; }
+      if(s > e){ alert('시작월이 종료월보다 늦을 수 없어요.'); return null; }
+      const [ey, em] = e.split('-').map(Number);
+      const lastDay = new Date(ey, em, 0).getDate();
+      return { start: s.replace('-','') + '01', end: `${ey}${String(em).padStart(2,'0')}${String(lastDay).padStart(2,'0')}` };
+    }
+    const s = document.getElementById('liveHrStartDate').value;
+    const e = document.getElementById('liveHrEndDate').value;
+    if(!s || !e){ alert('시작일과 종료일을 모두 선택해주세요.'); return null; }
+    if(s > e){ alert('시작일이 종료일보다 늦을 수 없어요.'); return null; }
+    return { start: inputDateToYmd_(s), end: inputDateToYmd_(e) };
+  }
+
+  window.loadLiveHour = async function(){
+    const range = getLiveHrRange_();
+    if(!range) return;
+    const loading = document.getElementById('liveHrLoading');
+    loading.style.display = 'block';
+    document.getElementById('liveHrTableWrap').innerHTML = '';
+    try {
+      const months = hrMonthsBetween_(range.start, range.end);
+      const loaded = await Promise.all(months.map(ym => fetchHourMonth_(ym)));
+      const ok = loaded.filter(Boolean);
+      window.__liveHrPeriod = range;
+      window.__liveHrMissing = months.filter((ym, i) => !loaded[i]);
+      if(!ok.length){
+        window.__liveHrData = null;
+        document.getElementById('liveHrTableWrap').innerHTML =
+          `<div class="live-empty">이 기간의 시간대별 데이터가 아직 없어요.<br>
+            <span style="color:#6b8fa8;font-size:12px;">수집 파일: data/hour/hour-${months.join('.json, hour-')}.json</span></div>`;
+        return;
+      }
+      window.__liveHrData = ok;
+      const latest = ok.map(d => d.updatedAt).filter(Boolean).sort().pop();
+      document.getElementById('liveHrUpdatedAt').textContent = latest ? 'OKPOS 동기화: ' + formatSyncTime_(latest) : '';
+      window.renderLiveHourTable();
+    } catch(err){
+      document.getElementById('liveHrTableWrap').innerHTML =
+        `<div style="padding:20px;color:#e05555;">불러오기 실패: ${err.message}</div>`;
+    } finally {
+      loading.style.display = 'none';
+    }
+  };
+
+  // 조회된 기간 안의 모든 (매장 × 날짜 × 시간 × 상품) 행을 한 번씩 콜백으로 넘긴다.
+  function liveHrIterate_(cb){
+    const period = window.__liveHrPeriod;
+    if(!period) return;
+    (window.__liveHrData || []).forEach(md => {
+      const ym = md.YM;
+      const products = md.PRODUCTS || [];
+      Object.entries(md.STORES || {}).forEach(([code, s]) => {
+        (s.rows || []).forEach(r => {
+          const date = ym + String(r[0]).padStart(2,'0');
+          if(date < period.start || date > period.end) return;
+          cb({ code, name: s.name, date, ym, hour: r[1]|0,
+               product: products[r[2]] || '(상품명 없음)', qty: r[3]||0, amount: r[4]||0 });
+        });
+      });
+    });
+  }
+
+  function liveHrFilters_(){
+    return {
+      mode: document.getElementById('liveHrViewMode').value,
+      q: (document.getElementById('liveHrSearch').value || '').trim(),
+      managerVal: document.getElementById('liveHrManagerSel') ? document.getElementById('liveHrManagerSel').value : 'all'
+    };
+  }
+
+  window.renderLiveHourTable = function(){
+    const wrap = document.getElementById('liveHrTableWrap');
+    if(!window.__liveHrData){ return; }
+    const { mode, q, managerVal } = liveHrFilters_();
+    const metric = document.getElementById('liveHrMetric').value;
+    const hideEmpty = document.getElementById('liveHrHideEmpty').checked;
+
+    const mgrCache = {};
+    const mgrOf = (code, name) => (mgrCache[code] !== undefined ? mgrCache[code]
+      : (mgrCache[code] = (typeof mkStoreManager === 'function' ? mkStoreManager(name) : null)));
+
+    const storeSeen = new Map();
+    const rowMap = new Map();
+    const colQty = new Array(24).fill(0);
+    const colAmt = new Array(24).fill(0);
+
+    liveHrIterate_(r => {
+      const manager = mgrOf(r.code, r.name);
+      if(!storeSeen.has(r.code)) storeSeen.set(r.code, { manager });
+      if(q && !(r.name || '').includes(q)) return;
+      if(managerVal !== 'all' && manager !== managerVal) return;
+
+      let key, label;
+      if(mode === 'store'){ key = r.code; label = r.name; }
+      else if(mode === 'day'){ key = r.date; label = `${r.date.slice(0,4)}.${r.date.slice(4,6)}.${r.date.slice(6,8)}`; }
+      else { key = r.ym; label = `${r.ym.slice(0,4)}년 ${+r.ym.slice(4,6)}월`; }
+
+      let row = rowMap.get(key);
+      if(!row){
+        row = { key, label, manager: (mode === 'store' ? (manager || '-') : '-'),
+                qty: new Array(24).fill(0), amt: new Array(24).fill(0), totQty: 0, totAmt: 0, stores: new Set() };
+        rowMap.set(key, row);
+      }
+      row.qty[r.hour] += r.qty;
+      row.amt[r.hour] += r.amount;
+      row.totQty += r.qty;
+      row.totAmt += r.amount;
+      row.stores.add(r.code);
+      colQty[r.hour] += r.qty;
+      colAmt[r.hour] += r.amount;
+    });
+
+    livePopulateManagerSel('liveHrManagerSel', [...storeSeen.values()]);
+
+    let rows = [...rowMap.values()];
+    if(!rows.length){
+      wrap.innerHTML = `<div class="live-empty">${q ? `"${q}" 검색 결과가 없어요.` : '조회된 매출이 없어요.'}</div>`;
+      return;
+    }
+    if(mode === 'store') rows.sort((a,b) => b.totAmt - a.totAmt);
+    else rows.sort((a,b) => (a.key < b.key ? -1 : 1));
+
+    const hours = [];
+    for(let h = 0; h < 24; h++){
+      if(hideEmpty && !colAmt[h] && !colQty[h]) continue;
+      hours.push(h);
+    }
+    if(!hours.length){ wrap.innerHTML = `<div class="live-empty">조회된 매출이 없어요.</div>`; return; }
+
+    const grandQty = colQty.reduce((a,b)=>a+b, 0);
+    const grandAmt = colAmt.reduce((a,b)=>a+b, 0);
+
+    const cellHtml = (qty, amt, isPeak) => {
+      if(!qty && !amt) return `<span style="color:#2a4258;">-</span>`;
+      const style = isPeak ? 'color:#ffd479;font-weight:700;' : '';
+      if(metric === 'qty') return `<span style="${style}">${qty.toLocaleString()}개</span>`;
+      if(metric === 'both') return `<span style="${style}">${amt.toLocaleString()}</span>
+        <div style="font-size:10px;color:#6b8fa8;">${qty.toLocaleString()}개</div>`;
+      return `<span style="${style}">${amt.toLocaleString()}</span>`;
+    };
+
+    const headHours = hours.map(h => `<th style="text-align:right;white-space:nowrap;">${hrHourLabel_(h)}</th>`).join('');
+    const firstColLabel = (mode === 'store') ? `매장명 (${rows.length}개)` : (mode === 'day' ? '날짜' : '월');
+
+    // 전체 합계 행
+    const totalCells = hours.map(h => `<td style="text-align:right;">${cellHtml(colQty[h], colAmt[h], false)}</td>`).join('');
+    const totalRow = `<tr style="background:#122c42;font-weight:700;">
+        <td style="text-align:center;">전체 합계</td>
+        ${mode === 'store' ? '<td style="text-align:center;">-</td>' : ''}
+        <td style="text-align:right;">${grandAmt.toLocaleString()}<div style="font-size:10px;color:#6b8fa8;">${grandQty.toLocaleString()}개</div></td>
+        ${totalCells}
+      </tr>`;
+
+    const bodyRows = rows.map(row => {
+      const peak = Math.max(...row.amt);
+      const cells = hours.map(h => {
+        const clickable = (row.qty[h] || row.amt[h]);
+        const onclick = clickable ? ` onclick="window.showLiveHrDetail('${row.key}',${h})" style="text-align:right;cursor:pointer;" title="클릭하면 이 시간대에 팔린 상품을 볼 수 있어요"` : ' style="text-align:right;"';
+        return `<td${onclick}>${cellHtml(row.qty[h], row.amt[h], peak > 0 && row.amt[h] === peak)}</td>`;
+      }).join('');
+      return `<tr>
+          <td style="text-align:center;">${row.label}</td>
+          ${mode === 'store' ? `<td style="text-align:center;">${row.manager}</td>` : ''}
+          <td style="text-align:right;font-weight:600;">${row.totAmt.toLocaleString()}<div style="font-size:10px;color:#6b8fa8;">${row.totQty.toLocaleString()}개</div></td>
+          ${cells}
+        </tr>`;
+    }).join('');
+
+    const missingMsg = (window.__liveHrMissing && window.__liveHrMissing.length)
+      ? `<div style="padding:8px 12px;color:#e0a555;font-size:12px;">※ 아직 수집되지 않은 월이 있어요: ${window.__liveHrMissing.map(m => `${m.slice(0,4)}년 ${+m.slice(4,6)}월`).join(', ')}</div>`
+      : '';
+
+    wrap.innerHTML = `
+      ${missingMsg}
+      <div style="padding:2px 12px 8px;color:#6b8fa8;font-size:11.5px;">시간대 칸을 클릭하면 그 시간에 팔린 상품이 나옵니다.</div>
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table">
+            <thead><tr>
+              <th style="text-align:center;">${firstColLabel}</th>
+              ${mode === 'store' ? '<th style="text-align:center;">담당자</th>' : ''}
+              <th style="text-align:right;">합계</th>
+              ${headHours}
+            </tr></thead>
+            <tbody>${totalRow}${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    // 엑셀 다운로드용 캐시 (화면에 보이는 필터/시간대 그대로)
+    window.__liveExportCache = window.__liveExportCache || {};
+    const header = [firstColLabel.replace(/\s*\(.*\)$/, ''), ...(mode === 'store' ? ['담당자'] : []),
+      '합계금액', '합계수량', ...hours.flatMap(h => [`${hrHourLabel_(h)} 금액`, `${hrHourLabel_(h)} 수량`])];
+    const totalRowX = ['전체 합계', ...(mode === 'store' ? ['-'] : []), grandAmt, grandQty,
+      ...hours.flatMap(h => [colAmt[h], colQty[h]])];
+    const bodyRowsX = rows.map(row => [row.label, ...(mode === 'store' ? [row.manager] : []), row.totAmt, row.totQty,
+      ...hours.flatMap(h => [row.amt[h], row.qty[h]])]);
+    window.__liveExportCache.hour = { header, rows: [totalRowX, ...bodyRowsX] };
+  };
+
+  window.downloadLiveHourExcel = function(){
+    downloadLiveTableExcel_('hour', '시간대별매출', '시간대별매출');
+  };
+
+  // ⏰ 시간대별 매출: 시간대 칸 클릭 → 그 시간에 팔린 상품 상세
+  window.showLiveHrDetail = function(key, hour){
+    const { mode, q, managerVal } = liveHrFilters_();
+    const mgrCache = {};
+    const mgrOf = (code, name) => (mgrCache[code] !== undefined ? mgrCache[code]
+      : (mgrCache[code] = (typeof mkStoreManager === 'function' ? mkStoreManager(name) : null)));
+
+    const prodAgg = {};
+    const storeAgg = {};
+    let totQty = 0, totAmt = 0, rowLabel = '';
+
+    liveHrIterate_(r => {
+      if(r.hour !== hour) return;
+      if(q && !(r.name || '').includes(q)) return;
+      if(managerVal !== 'all' && mgrOf(r.code, r.name) !== managerVal) return;
+      const rk = (mode === 'store') ? r.code : (mode === 'day' ? r.date : r.ym);
+      if(String(rk) !== String(key)) return;
+      if(!rowLabel){
+        rowLabel = (mode === 'store') ? r.name
+          : (mode === 'day' ? `${r.date.slice(0,4)}.${r.date.slice(4,6)}.${r.date.slice(6,8)}`
+                            : `${r.ym.slice(0,4)}년 ${+r.ym.slice(4,6)}월`);
+      }
+      if(!prodAgg[r.product]) prodAgg[r.product] = { qty: 0, amt: 0 };
+      prodAgg[r.product].qty += r.qty;
+      prodAgg[r.product].amt += r.amount;
+      if(!storeAgg[r.name]) storeAgg[r.name] = { qty: 0, amt: 0 };
+      storeAgg[r.name].qty += r.qty;
+      storeAgg[r.name].amt += r.amount;
+      totQty += r.qty;
+      totAmt += r.amount;
+    });
+
+    const prods = Object.entries(prodAgg).sort((a,b) => b[1].amt - a[1].amt);
+    document.getElementById('liveHrDetailTitle').textContent = `${rowLabel || '-'} · ${hrHourLabel_(hour)}`;
+    document.getElementById('liveHrDetailSub').textContent =
+      `매출 ${totAmt.toLocaleString()}원 · ${totQty.toLocaleString()}개 · 상품 ${prods.length}종`;
+
+    const body = document.getElementById('liveHrDetailBody');
+    if(!prods.length){
+      body.innerHTML = `<div style="color:#6b8fa8;font-size:13px;padding:8px 0;">이 시간대에 판매된 상품이 없어요.</div>`;
+    } else {
+      const prodHtml = prods.map(([name, v]) => `
+        <div style="display:flex;justify-content:space-between;gap:10px;padding:9px 12px;
+            background:#0d1b2a;border-radius:8px;border:0.5px solid #1a2f44;">
+          <div style="font-size:13px;color:#dbe8f5;">${name} <span style="color:#6b8fa8;">× ${v.qty.toLocaleString()}</span></div>
+          <div style="font-size:13px;color:#dbe8f5;font-weight:600;">${v.amt.toLocaleString()}원</div>
+        </div>`).join('');
+
+      let storeHtml = '';
+      if(mode !== 'store'){
+        const stores = Object.entries(storeAgg).sort((a,b) => b[1].amt - a[1].amt).slice(0, 10);
+        storeHtml = `
+          <div style="margin-top:14px;font-size:12px;color:#6b8fa8;">매장별 상위 ${stores.length}곳</div>
+          ${stores.map(([name, v]) => `
+            <div style="display:flex;justify-content:space-between;gap:10px;padding:7px 12px;
+                background:#0b1725;border-radius:8px;border:0.5px solid #16283a;">
+              <div style="font-size:12.5px;color:#a9c4dc;">${name}</div>
+              <div style="font-size:12.5px;color:#a9c4dc;">${v.amt.toLocaleString()}원 · ${v.qty.toLocaleString()}개</div>
+            </div>`).join('')}`;
+      }
+      body.innerHTML = prodHtml + storeHtml;
+    }
+    document.getElementById('liveHrDetailModal').classList.add('open');
+  };
+
+  window.closeLiveHrDetailModal = function(){
+    document.getElementById('liveHrDetailModal').classList.remove('open');
+  };
+
 
   // ── 🧮 매출정리: 매장별 포스 매출 / 배달 매출 / 배달횟수 / 총매출 (월별 또는 기간별) ──
   // "정리보기": live-daily.json의 일별 SA_AMT_TTL(총매출) 필드와 channelDays(채널별 매출·건수)를 기간 합산해서
