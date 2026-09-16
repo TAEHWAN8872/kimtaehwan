@@ -12,6 +12,7 @@ on:
         options:
           - daily
           - backfill
+          - hour-backfill
           - patch
           - product-patch
           - product-backfill
@@ -32,6 +33,18 @@ on:
         description: 'product-backfill 모드일 때 조회할 일수 (용량 문제로 기본 90일 권장)'
         required: false
         default: '90'
+      hour_backfill_start:
+        description: 'hour-backfill 모드일 때 시작일 (yyyymmdd)'
+        required: false
+        default: ''
+      hour_backfill_end:
+        description: 'hour-backfill 모드일 때 종료일 (yyyymmdd, 시작일보다 빠를 수 없음)'
+        required: false
+        default: ''
+      hour_backfill_store_codes:
+        description: 'hour-backfill 모드일 때 대상 매장코드 (콤마구분, 비우면 전체 매장)'
+        required: false
+        default: ''
       patch_store_codes:
         description: 'patch 모드일 때 대상 매장코드 (콤마구분, 예: BHD106,BHD087)'
         required: false
@@ -140,6 +153,14 @@ jobs:
           TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
           PRODUCT_ROLLING_DAYS: ${{ github.event.inputs.product_rolling_days }}
         run: node scripts/product-backfill.js
+      - name: 시간대별 매출 백필 실행 (수동-hour-backfill, 지정 구간을 하루씩 조회해 월별 파일에 저장)
+        if: github.event.inputs.mode == 'hour-backfill'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+          HOUR_BACKFILL_START: ${{ github.event.inputs.hour_backfill_start }}
+          HOUR_BACKFILL_END: ${{ github.event.inputs.hour_backfill_end }}
+          HOUR_BACKFILL_STORE_CODES: ${{ github.event.inputs.hour_backfill_store_codes }}
+        run: node scripts/hour-backfill.js
       - name: 채널별 매출 백필 실행 (수동-channel-backfill)
         if: github.event.inputs.mode == 'channel-backfill'
         env:
