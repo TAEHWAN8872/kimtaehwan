@@ -611,6 +611,49 @@ function buildProductCategoryMap(products) {
   return map;
 }
 
+/**
+ * REQ_CODE 3 주문 목록(SA_NO, SA_DT/SDA_DT 포함)과 REQ_CODE 6 원본 라인(SA_NO로 연결,
+ * CMDT_NM/SC_QTY/SC_AMT_TTL/SC_FORM/OPTION_GBN 포함)을 SA_NO로 조인해서
+ * (영업일, 시간대, 상품명) 기준 판매 내역으로 변환한다.
+ * — 시간대별 매출 탭(data/hour/hour-YYYYMM.json)을 만들 때 사용.
+ * 세트구성품(OPTION_GBN==='S')과 취소/반품(SC_FORM in ['D','C']) 라인은
+ * aggregateOrderDetailToProducts와 동일한 기준으로 제외한다.
+ * 시간(hour, 0~23)은 주문 마스터의 SA_DT(예: "2026-08-31 13:45:00")에서
+ * 시(HH) 부분을 뽑아 쓴다. SA_DT가 없거나 형식이 예상과 다른 주문, 아직
+ * 품목상세(REQ_CODE 6)가 안 잡힌 주문은 이번 회차 집계에서 제외한다(다음
+ * 회차에 품목상세가 들어오면 자동으로 반영됨).
+ * 반환: { rows: [{SDA_DT, hour, CMDT_NM, qty, amount}, ...],
+ *         matchedOrders, skippedNoTime, skippedNoItems } (뒤 3개는 진단용 개수)
+ */
+function aggregateOrdersAndItemsToHourProducts(orders, rawItemRows) {
+  const linesBySaNo = {};
+  for (const r of rawItemRows) {
+    const key = String(r.SA_NO);
+    if (!linesBySaNo[key]) linesBySaNo[key] = [];
+    linesBySaNo[key].push(r);
+  }
+
+  const byKey = {};
+  let matchedOrders = 0, skippedNoTime = 0, skippedNoItems = 0;
+  for (const o of orders) {
+    const timePart = typeof o.SA_DT === 'string' ? o.SA_DT.slice(11, 13) : '';
+    const hour = Number(timePart);
+    if (!timePart || Number.isNaN(hour) || hour < 0 || hour > 23) { skippedNoTime++; continue; }
+    const lines = linesBySaNo[String(o.SA_NO)];
+    if (!lines || !lines.length) { skippedNoItems++; continue; }
+    matchedOrders++;
+    for (const r of lines) {
+      if (FILTER_SET_COMPONENTS && r.OPTION_GBN === 'S') continue; // 세트구성품 제외
+      if (FILTER_CANCELLED && CANCELLED_SC_FORMS.includes(r.SC_FORM)) continue; // 취소/반품 제외
+      const key = o.SDA_DT + '|' + hour + '|' + r.CMDT_NM;
+      if (!byKey[key]) byKey[key] = { SDA_DT: o.SDA_DT, hour, CMDT_NM: r.CMDT_NM, qty: 0, amount: 0 };
+      byKey[key].qty += Number(r.SC_QTY || 0);
+      byKey[key].amount += Number(r.SC_AMT_TTL || 0);
+    }
+  }
+  return { rows: Object.values(byKey), matchedOrders, skippedNoTime, skippedNoItems };
+}
+
 module.exports = {
   TPAY_HOST,
   FRANCHISE_CODE,
@@ -633,6 +676,7 @@ module.exports = {
   fetchOneStoreOrderDetail,
   fetchOneStoreProductsRealtime,
   aggregateOrderDetailToProducts,
+  aggregateOrdersAndItemsToHourProducts,
   fetchProductCategories,
   buildProductCategoryMap,
 };
