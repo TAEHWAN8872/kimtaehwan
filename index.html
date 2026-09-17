@@ -1431,9 +1431,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           <div id="cannibalManagerStoreBox" style="display:none;margin-bottom:16px;padding:10px 12px;background:#0d1b2a;border:0.5px solid #1e3347;border-radius:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
               <div id="cannibalManagerStoreTitle" style="font-size:11.5px;color:#7eb8e8;font-weight:700;"></div>
-              <input id="cannibalManagerStoreSearch" type="text" placeholder="매장명 검색..." autocomplete="off"
+              <input id="cannibalManagerStoreSearch" type="text" placeholder="매장명 검색 후 클릭 선택..." autocomplete="off"
                 oninput="renderCannibalManagerStoreList()"
-                style="font-size:11px;padding:4px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;width:140px;">
+                style="font-size:11px;padding:4px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;width:160px;">
             </div>
             <div id="cannibalManagerStoreList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
           </div>
@@ -8850,15 +8850,18 @@ const NEW_MENU_SUB_KEYWORDS = { '레드벨벳': ['레드벨벳'], '쑥': ['쑥']
 let cannibalProduct = '신메뉴';
 let cannibalMetric = 'qty'; // 'qty' | 'amt'
 let cannibalManagerFilter = 'all'; // '全' 또는 특정 담당자명
+let cannibalSelectedStores = new Set(); // 담당자 선택 후, 그중 특정 매장(들)만 추가로 골라낸 경우(비어있으면 해당 담당자 전체)
 function cannibalValue(name, qty) {
   return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
 }
-// 해당 row(매장 단위 판매 데이터)가 현재 선택된 담당자 필터에 해당하는지 확인.
+// 해당 row(매장 단위 판매 데이터)가 현재 선택된 담당자/매장 필터에 해당하는지 확인.
 // 26년 1~8월 데이터는 매장(row['매장']) 기준이라 필터가 그대로 적용되지만,
 // 25년 12월 추정치·9~11월 출시전 데이터는 매장 구분이 없는 전사 합산 상수라서 필터를 적용할 수 없다.
 function cannibalRowMatchesManager(row) {
   if (cannibalManagerFilter === 'all') return true;
-  return getManagerForStore(row['매장']) === cannibalManagerFilter;
+  if (getManagerForStore(row['매장']) !== cannibalManagerFilter) return false;
+  if (cannibalSelectedStores.size > 0 && !cannibalSelectedStores.has(row['매장'])) return false;
+  return true;
 }
 const CANNIBAL_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','박영태 대리','강동우 사원','이현민 사원'];
 function cannibalPopulateManagerSel() {
@@ -8876,6 +8879,23 @@ function cannibalPopulateManagerSel() {
 function onCannibalManagerChange() {
   const sel = document.getElementById('cannibalManagerSel');
   cannibalManagerFilter = sel ? sel.value : 'all';
+  cannibalSelectedStores.clear(); // 담당자를 바꾸면 매장 선택은 초기화(해당 담당자 전체 보기부터 시작)
+  const searchEl = document.getElementById('cannibalManagerStoreSearch');
+  if (searchEl) searchEl.value = '';
+  cannibalRefreshAll();
+}
+// 매장 칩 클릭 시 선택/해제 토글(여러 매장 중복 선택 가능). 비어있으면 담당자 전체로 간주.
+function toggleCannibalStore(name) {
+  if (cannibalSelectedStores.has(name)) cannibalSelectedStores.delete(name);
+  else cannibalSelectedStores.add(name);
+  cannibalRefreshAll();
+}
+function clearCannibalStoreSelection() {
+  cannibalSelectedStores.clear();
+  cannibalRefreshAll();
+}
+// 매장/담당자 필터가 바뀔 때마다 관련 차트·표·매장 목록을 전부 다시 그린다.
+function cannibalRefreshAll() {
   updateCannibalTexts();
   renderCannibalPieChart();
   renderCannibalBarChart();
@@ -8884,7 +8904,8 @@ function onCannibalManagerChange() {
   renderCannibalNewMenuBreakdownChart();
   renderCannibalManagerStoreList();
 }
-// 담당자 필터 선택 시 해당 담당자가 관리하는 매장 목록을 칩 형태로 표시(검색창으로 매장명 검색 가능).
+// 담당자 필터 선택 시 해당 담당자가 관리하는 매장 목록을 클릭 가능한 칩 형태로 표시.
+// 검색창으로 목록을 좁힐 수 있고, 칩을 클릭하면 해당 매장(들)만 선택되어 데이터에 즉시 반영됨(중복 선택 가능).
 // '담당자 전체' 선택 시에는 목록을 숨긴다.
 function renderCannibalManagerStoreList() {
   const box = document.getElementById('cannibalManagerStoreBox');
@@ -8902,14 +8923,21 @@ function renderCannibalManagerStoreList() {
   const searchEl = document.getElementById('cannibalManagerStoreSearch');
   const kw = (searchEl ? searchEl.value : '').trim();
   const filtered = kw ? stores.filter(n => n.includes(kw)) : stores;
-  titleEl.textContent = `🏪 ${cannibalManagerFilter} 담당 매장 (${filtered.length}/${stores.length}개)`;
+  const selCount = cannibalSelectedStores.size;
+  const selSuffix = selCount ? ` · ${selCount}개 선택됨` : '';
+  titleEl.innerHTML = `<span>🏪 ${cannibalManagerFilter} 담당 매장 (${filtered.length}/${stores.length}개)${selSuffix}</span>` +
+    (selCount ? ` <span onclick="clearCannibalStoreSelection()" style="cursor:pointer;font-size:10.5px;color:#7eb8e8;text-decoration:underline;font-weight:400;margin-left:6px;">선택 초기화</span>` : '');
   if (!filtered.length) {
     listEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">${kw ? '검색 결과가 없습니다.' : '해당 담당자의 매장이 없습니다.'}</div>`;
     return;
   }
-  listEl.innerHTML = filtered.map(n =>
-    `<span style="font-size:11px;padding:4px 10px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:12px;">${n}</span>`
-  ).join('');
+  listEl.innerHTML = filtered.map(n => {
+    const isSel = cannibalSelectedStores.has(n);
+    const style = isSel
+      ? 'font-size:11px;padding:4px 10px;background:#7eb8e8;border:0.5px solid #7eb8e8;color:#0d1b2a;border-radius:12px;cursor:pointer;font-weight:700;'
+      : 'font-size:11px;padding:4px 10px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:12px;cursor:pointer;';
+    return `<span onclick="toggleCannibalStore('${n.replace(/'/g, "\\'")}')" style="${style}">${isSel ? '✓ ' : ''}${n}</span>`;
+  }).join('');
 }
 let CANNIBAL_CATEGORIES = [];
 let CANNIBAL_COLORS = {};
@@ -9485,7 +9513,8 @@ function updateCannibalTexts() {
   const periodTitleEl = document.getElementById('cannibalPeriodTitle');
   const periodDescEl = document.getElementById('cannibalPeriodDesc');
   const unitWord = cannibalMetric === 'amt' ? '매출금액' : '판매수량';
-  if (titleEl) titleEl.textContent = `🍽️ 기본메뉴(앙버터·팥·레몬버터·딸기) + ${newMenuLabel} 카니발리즘 분석${cannibalManagerFilter !== 'all' ? ` · ${cannibalManagerFilter}` : ''}`;
+  const storeSuffix = cannibalSelectedStores.size ? ` (${cannibalSelectedStores.size}개 매장)` : '';
+  if (titleEl) titleEl.textContent = `🍽️ 기본메뉴(앙버터·팥·레몬버터·딸기) + ${newMenuLabel} 카니발리즘 분석${cannibalManagerFilter !== 'all' ? ` · ${cannibalManagerFilter}${storeSuffix}` : ''}`;
   if (descEl) descEl.textContent = `${newMenuLabel}는 ${cfg.launchLabel}에 순차 출시된 신메뉴입니다. 기본 4개 맛과 신메뉴 전체 비중이 어떻게 달라졌는지 확인하는 탭입니다. 아래 "신메뉴 세부 비교"에서 3종 개별 수량/금액과 추이를 함께 볼 수 있습니다.`;
   if (barTitleEl) barTitleEl.textContent = `📊 월별 비중 추이 (%기준) — 신메뉴 등장 이후 다른 맛의 비중 변화 확인`;
   if (stackedTitleEl) stackedTitleEl.textContent = `📈 월별 누적 ${unitWord} 추이 (${cannibalMetric === 'amt' ? '원' : '개수'} 기준 · 비중 % 함께 표시)`;
