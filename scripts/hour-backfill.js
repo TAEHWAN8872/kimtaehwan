@@ -28,12 +28,25 @@
 // 이 목록에 낀 날짜는 나중에 STORE_CODES 없이 그 날짜만 다시 돌려보는 걸
 // 권장한다.
 //
+// [2026-09-17 추가: 세션 누적 속도제한 대응] 위 재시도 로직을 넣고 9/1~9/15
+// 15일치를 한 세션에서 실제 돌려보니, 9/1~6은 정상(수천 건)이다가 9/7~9는
+// 부분 붕괴(재시도로 일부 복구), 9/10부터는 재시도해도 완전히 막히는 패턴이
+// 나왔다. 9/7일치를 BHD055 한 매장만 compare 모드로 따로 조회해보니 확정값과
+// 정확히 일치했다 — 즉 데이터 자체는 멀쩡히 살아있고, tpay가 "이 세션 안에서
+// 지금까지 누적된 호출량"에 비례해서 점점 강하게 속도제한을 거는 것으로
+// 보인다(날짜가 최근이라서가 아니었음). 그래서 매장 간 딜레이를 늘리고
+// (STORE_DELAY_MS), 며칠 처리할 때마다 강제로 길게 쉬어서
+// (COOLDOWN_EVERY_DAYS/COOLDOWN_MS) 세션 부하를 주기적으로 풀어준다.
+//
 // [사용법] GitHub Actions에서 mode=hour-backfill로 수동 실행.
 //   HOUR_BACKFILL_START / HOUR_BACKFILL_END (yyyymmdd, 둘 다 포함, 기간이
 //   여러 달에 걸쳐도 됨 — 달이 바뀔 때마다 알아서 파일을 나눠 저장한다)
 //   HOUR_BACKFILL_STORE_CODES (선택, 콤마구분. 비우면 전체 매장)
 //   HOUR_BACKFILL_ZERO_DAY_MAX_RETRIES (선택, 기본 2)
 //   HOUR_BACKFILL_ZERO_DAY_RETRY_DELAY_MS (선택, 기본 15000 = 15초)
+//   HOUR_BACKFILL_STORE_DELAY_MS (선택, 기본 300 = 매장 호출 사이 딜레이)
+//   HOUR_BACKFILL_COOLDOWN_EVERY_DAYS (선택, 기본 5 = 며칠마다 쿨다운할지)
+//   HOUR_BACKFILL_COOLDOWN_MS (선택, 기본 30000 = 쿨다운 30초)
 //
 // [진행 방식] 날짜를 하루씩 순회하면서, 그 날짜의 매장별 REQ_CODE 3·6을
 // 조회해서 SA_NO로 조인 → 시간대별 상품 집계 → 월별 파일의 해당 일(day)
@@ -58,6 +71,17 @@ const ZERO_DAY_MAX_RETRIES = Number(process.env.HOUR_BACKFILL_ZERO_DAY_MAX_RETRI
 const ZERO_DAY_RETRY_DELAY_MS = Number(process.env.HOUR_BACKFILL_ZERO_DAY_RETRY_DELAY_MS || 15000);
 const ITEM_EMPTY_MAX_RETRIES = 2; // 품목상세가 완전히 빈 배열로 오면 매장 단위로 짧게 재시도
 const ITEM_EMPTY_RETRY_DELAY_MS = 800;
+
+// [2026-09-17 추가: 세션 누적 속도제한 대응] 9/1~9/15 15일치를 한 세션에서
+// 돌렸더니 9/1~6은 정상(수천 건), 9/7~9는 부분 붕괴(재시도로 일부 복구),
+// 9/10부터는 재시도해도 완전히 막히는 패턴이 나왔다(실측 확인: 9/7일치를
+// BHD055 한 매장만 별도로 compare 모드 조회하니 확정값과 정확히 일치 —
+// 즉 데이터 자체는 살아있고, tpay가 "한 세션 안의 누적 호출량"에 따라 점점
+// 강하게 속도제한을 거는 것으로 보인다). 그래서 매장 간 딜레이를 늘리고,
+// 며칠 처리할 때마다 강제로 길게 쉬어서 세션 부하를 주기적으로 풀어준다.
+const STORE_DELAY_MS = Number(process.env.HOUR_BACKFILL_STORE_DELAY_MS || 300);
+const COOLDOWN_EVERY_DAYS = Number(process.env.HOUR_BACKFILL_COOLDOWN_EVERY_DAYS || 5);
+const COOLDOWN_MS = Number(process.env.HOUR_BACKFILL_COOLDOWN_MS || 30000);
 
 function hourPath_(ym) {
   return path.join(HOUR_DIR, `hour-${ym}.json`);
@@ -133,7 +157,7 @@ async function processDateOnce_(token, date, storeMap) {
     const orderResult = await fetchOneStoreRealtimeWithOrders(token, code, date);
     if (orderResult.error) {
       dateFailed.push(`${date} ${code}(${name}) 주문조회: ${orderResult.error}`);
-      if (i < storeMap.length - 1) await sleep(150);
+      if (i < storeMap.length - 1) await sleep(STORE_DELAY_MS);
       continue;
     }
     rawOrders += orderResult.orders.length;
@@ -156,7 +180,7 @@ async function processDateOnce_(token, date, storeMap) {
     }
     perStore[code] = { name, hourRows };
 
-    if (i < storeMap.length - 1) await sleep(150);
+    if (i < storeMap.length - 1) await sleep(STORE_DELAY_MS);
   }
 
   return { perStore, rawOrders, matched, skippedNoTime, skippedNoItems, carry, dateFailed, itemRetries };
@@ -181,7 +205,8 @@ async function main() {
 
   console.log(
     `시간대별 매출 백필 시작: ${START} ~ ${END}, 매장 ${storeMap.length}개${codeFilter.length ? ' (지정 매장만)' : ''} ` +
-    `(0건 전체 재시도 최대 ${ZERO_DAY_MAX_RETRIES}회, ${ZERO_DAY_RETRY_DELAY_MS / 1000}초 간격)`
+    `(0건 전체 재시도 최대 ${ZERO_DAY_MAX_RETRIES}회, ${ZERO_DAY_RETRY_DELAY_MS / 1000}초 간격 / ` +
+    `매장간 ${STORE_DELAY_MS}ms / ${COOLDOWN_EVERY_DAYS}일마다 ${COOLDOWN_MS / 1000}초 쿨다운)`
   );
 
   let currentYm = null;
@@ -247,6 +272,13 @@ async function main() {
       `품목없음 ${result.skippedNoItems}건(${itemFailRate}%) / 전일이월 ${result.carry}건 / 실패 ${result.dateFailed.length}건` +
       (retries > 0 ? ` [재시도 ${retries}회]` : '')
     );
+
+    // 세션 누적 속도제한 대응: 며칠 처리할 때마다 강제로 길게 쉬어서 부하를 풀어준다
+    // (END일까지 다 처리했으면 굳이 쉴 필요 없음)
+    if (COOLDOWN_EVERY_DAYS > 0 && totalDays % COOLDOWN_EVERY_DAYS === 0 && date < END) {
+      console.log(`  💤 ${totalDays}일 처리 — 세션 부하 완화를 위해 ${COOLDOWN_MS / 1000}초 쉬어갑니다...`);
+      await sleep(COOLDOWN_MS);
+    }
   }
 
   if (monthData) saveMonth_(monthData); // 마지막 달 저장
