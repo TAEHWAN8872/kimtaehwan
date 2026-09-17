@@ -45,6 +45,10 @@ on:
         description: 'hour-backfill 모드일 때 대상 매장코드 (콤마구분, 비우면 전체 매장)'
         required: false
         default: ''
+      hour_backfill_chain_depth:
+        description: '(자동) hour-backfill 조기종료 후 자동 재실행 시 내부적으로 쓰이는 체인 깊이 — 직접 실행할 땐 비워두세요'
+        required: false
+        default: '0'
       patch_store_codes:
         description: 'patch 모드일 때 대상 매장코드 (콤마구분, 예: BHD106,BHD087)'
         required: false
@@ -103,6 +107,7 @@ on:
         default: ''
 permissions:
   contents: write
+  actions: write
 concurrency:
   # [2026-08-26 변경] 기존에는 mode별로 그룹이 나뉘어 있어(tpay-sync-daily,
   # tpay-sync-product-backfill 등) daily 스케줄과 수동 backfill류가 동시에 실행될 수
@@ -154,12 +159,14 @@ jobs:
           PRODUCT_ROLLING_DAYS: ${{ github.event.inputs.product_rolling_days }}
         run: node scripts/product-backfill.js
       - name: 시간대별 매출 백필 실행 (수동-hour-backfill, 지정 구간을 하루씩 조회해 월별 파일에 저장)
+        id: hour_backfill
         if: github.event.inputs.mode == 'hour-backfill'
         env:
           TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
           HOUR_BACKFILL_START: ${{ github.event.inputs.hour_backfill_start }}
           HOUR_BACKFILL_END: ${{ github.event.inputs.hour_backfill_end }}
           HOUR_BACKFILL_STORE_CODES: ${{ github.event.inputs.hour_backfill_store_codes }}
+          HOUR_BACKFILL_CHAIN_DEPTH: ${{ github.event.inputs.hour_backfill_chain_depth }}
         run: node scripts/hour-backfill.js
       - name: 채널별 매출 백필 실행 (수동-channel-backfill)
         if: github.event.inputs.mode == 'channel-backfill'
@@ -257,3 +264,15 @@ jobs:
               sleep 5
             done
           fi
+      - name: 백필 조기 종료 시 다음 구간 자동 이어받기 (수동-hour-backfill)
+        if: github.event.inputs.mode == 'hour-backfill' && steps.hour_backfill.outputs.continue_start != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "다음 구간을 새 workflow_dispatch로 자동 재실행합니다: ${{ steps.hour_backfill.outputs.continue_start }} ~ ${{ steps.hour_backfill.outputs.continue_end }} (체인 ${{ steps.hour_backfill.outputs.continue_depth }})"
+          gh workflow run tpay-sync.yml \
+            -f mode=hour-backfill \
+            -f hour_backfill_start=${{ steps.hour_backfill.outputs.continue_start }} \
+            -f hour_backfill_end=${{ steps.hour_backfill.outputs.continue_end }} \
+            -f hour_backfill_store_codes="${{ github.event.inputs.hour_backfill_store_codes }}" \
+            -f hour_backfill_chain_depth=${{ steps.hour_backfill.outputs.continue_depth }}
