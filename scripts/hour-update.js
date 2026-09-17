@@ -94,7 +94,7 @@ function main() {
 
   let updatedCount = 0;
   let skippedNoTodayRaw = 0;
-  let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0;
+  let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0, totalCarryOrders = 0;
 
   for (const [code, s] of Object.entries(liveStores)) {
     const todayRaw = s.todayRaw;
@@ -105,11 +105,12 @@ function main() {
 
     const mergedOrders = Object.values(todayRaw.ordersByNo || {});
     const mergedItemRows = flattenItemsByNo_(todayRaw.itemsByNo);
-    const { rows: hourRows, matchedOrders, skippedNoTime, skippedNoItems } =
+    const { rows: hourRows, matchedOrders, skippedNoTime, skippedNoItems, carryOrders } =
       aggregateOrdersAndItemsToHourProducts(mergedOrders, mergedItemRows);
     totalMatchedOrders += matchedOrders;
     totalSkippedNoTime += skippedNoTime;
     totalSkippedNoItems += skippedNoItems;
+    totalCarryOrders += carryOrders;
 
     const todayCompactRows = hourRows
       .filter((r) => r.SDA_DT === today)
@@ -134,7 +135,8 @@ function main() {
   console.log(
     `시간대별 매출 갱신 완료(data/live-daily.json 재사용): ${today}, ` +
     `갱신 ${updatedCount}개 매장 / 오늘자 원본 없어 건너뜀 ${skippedNoTodayRaw}개 / ` +
-    `매칭된 주문 ${totalMatchedOrders}건 / 시각없음 제외 ${totalSkippedNoTime}건 / 품목상세 없음 ${totalSkippedNoItems}건`
+    `매칭된 주문 ${totalMatchedOrders}건 / 시각없음 제외 ${totalSkippedNoTime}건 / 품목상세 없음 ${totalSkippedNoItems}건 / ` +
+    `전일 마감 이월 ${totalCarryOrders}건`
   );
 }
 
