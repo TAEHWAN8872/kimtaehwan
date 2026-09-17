@@ -45,8 +45,15 @@
 //   HOUR_BACKFILL_ZERO_DAY_MAX_RETRIES (선택, 기본 2)
 //   HOUR_BACKFILL_ZERO_DAY_RETRY_DELAY_MS (선택, 기본 15000 = 15초)
 //   HOUR_BACKFILL_STORE_DELAY_MS (선택, 기본 300 = 매장 호출 사이 딜레이)
-//   HOUR_BACKFILL_COOLDOWN_EVERY_DAYS (선택, 기본 5 = 며칠마다 쿨다운할지)
+//   HOUR_BACKFILL_COOLDOWN_EVERY_DAYS (선택, 기본 3 = 며칠마다 쿨다운할지 — 9/17 실측에서
+//     5일째부터 이미 무너지기 시작하는 걸 확인해서 기본값을 3으로 낮춤)
 //   HOUR_BACKFILL_COOLDOWN_MS (선택, 기본 30000 = 쿨다운 30초)
+//   HOUR_BACKFILL_ABORT_AFTER_CONSECUTIVE_STILL_ZERO (선택, 기본 2 = 재시도해도
+//     끝내 0건인 날이 며칠 연속이면 남은 구간을 포기하고 즉시 저장 후 종료할지.
+//     0으로 주면 이 기능을 끄고 끝까지 밀어붙인다(과거 동작과 동일).
+//     조기 종료됐다면 마지막으로 실패한 날짜를 START로 삼아 새 workflow_dispatch를
+//     다시 실행해서 이어받을 것 — 같은 세션에서 기다리는 것보다 새 세션(새 러너)에서
+//     다시 시작하는 쪽이 회복 확률이 높은 것으로 보인다(실측 근거는 스크립트 상단 주석 참고).
 //
 // [진행 방식] 날짜를 하루씩 순회하면서, 그 날짜의 매장별 REQ_CODE 3·6을
 // 조회해서 SA_NO로 조인 → 시간대별 상품 집계 → 월별 파일의 해당 일(day)
@@ -80,8 +87,17 @@ const ITEM_EMPTY_RETRY_DELAY_MS = 800;
 // 강하게 속도제한을 거는 것으로 보인다). 그래서 매장 간 딜레이를 늘리고,
 // 며칠 처리할 때마다 강제로 길게 쉬어서 세션 부하를 주기적으로 풀어준다.
 const STORE_DELAY_MS = Number(process.env.HOUR_BACKFILL_STORE_DELAY_MS || 300);
-const COOLDOWN_EVERY_DAYS = Number(process.env.HOUR_BACKFILL_COOLDOWN_EVERY_DAYS || 5);
+const COOLDOWN_EVERY_DAYS = Number(process.env.HOUR_BACKFILL_COOLDOWN_EVERY_DAYS || 3);
 const COOLDOWN_MS = Number(process.env.HOUR_BACKFILL_COOLDOWN_MS || 30000);
+
+// [2026-09-17 추가: 연속 완전차단 시 조기 종료] TPAY_TOKEN이 레포 시크릿 고정값이라
+// (로그인/토큰갱신 로직이 없음) 세션 안에서는 재시도·쿨다운으로 회복이 안 되는 경우가
+// 실측 확인됐다(30초 쿨다운 + 15초 재시도 2회를 거쳐도 계속 0건). 이 상태에서 남은
+// 날짜를 계속 도는 건 시간 낭비이자 다른 매장 데이터까지 잘못 "정상 0건"으로 덮어쓸
+// 위험이 있으므로, 재시도해도 끝내 0건인 날이 연속 N일 나오면 그 시점에서 바로
+// 지금까지 결과를 저장하고 종료한다. 이러면 새 workflow_dispatch(=새 러너·새 세션)를
+// 이어서 돌려 회복 여부를 시험해볼 수 있다 — START를 마지막 실패 날짜로 넣어 재실행.
+const ABORT_AFTER_CONSECUTIVE_STILL_ZERO = Number(process.env.HOUR_BACKFILL_ABORT_AFTER_CONSECUTIVE_STILL_ZERO || 2);
 
 function hourPath_(ym) {
   return path.join(HOUR_DIR, `hour-${ym}.json`);
@@ -218,6 +234,8 @@ async function main() {
   let totalFailed = [];
   let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0, totalCarryOrders = 0, totalRawOrders = 0;
   const stillZeroDates = []; // 재시도해도 끝내 0건이었던 날짜(진짜 휴무 or API 문제 — 나중에 수동 확인 권장)
+  let consecutiveStillZero = 0; // 연속으로 "재시도해도 0건"인 날짜 수 — 조기 종료 판단용
+  let abortedAt = null; // 조기 종료했다면 그 시작 날짜(재실행 시 START로 쓸 값)
 
   for (let date = START; date <= END; date = nextDate_(date)) {
     const ym = date.slice(0, 6);
@@ -246,6 +264,9 @@ async function main() {
     if (result.rawOrders === 0 && retries > 0) {
       console.log(`  ⚠️ ${date}는 재시도해도 계속 0건입니다 — 실제 휴무이거나 API 문제일 수 있어요. 나중에 따로 확인해보세요.`);
       stillZeroDates.push(date);
+      consecutiveStillZero++;
+    } else {
+      consecutiveStillZero = 0;
     }
 
     // 이번 날짜 결과를 월별 파일에 반영 (fetch 자체가 실패한 매장은 건드리지 않고 기존 값 유지)
@@ -273,6 +294,22 @@ async function main() {
       (retries > 0 ? ` [재시도 ${retries}회]` : '')
     );
 
+    // [조기 종료] 재시도해도 끝내 0건인 날이 연속 N일이면, 이 세션(토큰·러너) 자체가
+    // 막혔다고 보고 남은 구간을 포기한다 — 계속 밀어붙여봐야 회복 안 되는 것으로
+    // 실측 확인됐고(30초 쿨다운+15초 재시도 2회로도 불회복), 오히려 남은 날짜에 "0건"을
+    // 계속 기록해서 나중에 구분하기 번거로워진다. 여기서 멈추고 새 workflow_dispatch로
+    // 이어받는 걸 권장.
+    if (ABORT_AFTER_CONSECUTIVE_STILL_ZERO > 0 && consecutiveStillZero >= ABORT_AFTER_CONSECUTIVE_STILL_ZERO && date < END) {
+      abortedAt = date;
+      console.log(
+        `\n🛑 ${date}까지 연속 ${consecutiveStillZero}일 재시도해도 0건 — 이 세션이 막힌 것으로 보고 여기서 조기 종료합니다.\n` +
+        `   남은 구간(${nextDate_(date)} ~ ${END})은 새 workflow_dispatch를 다시 실행해서 이어받으세요` +
+        `(HOUR_BACKFILL_START=${nextDate_(date)}, HOUR_BACKFILL_END=${END}). 같은 세션에서 더 기다리는 것보다` +
+        ` 새 러너에서 다시 시작하는 쪽이 회복 확률이 높은 것으로 보입니다.`
+      );
+      break;
+    }
+
     // 세션 누적 속도제한 대응: 며칠 처리할 때마다 강제로 길게 쉬어서 부하를 풀어준다
     // (END일까지 다 처리했으면 굳이 쉴 필요 없음)
     if (COOLDOWN_EVERY_DAYS > 0 && totalDays % COOLDOWN_EVERY_DAYS === 0 && date < END) {
@@ -284,10 +321,13 @@ async function main() {
   if (monthData) saveMonth_(monthData); // 마지막 달 저장
 
   console.log(
-    `\n백필 완료: ${START} ~ ${END} (${totalDays}일) / ` +
+    `\n백필 ${abortedAt ? '조기 종료' : '완료'}: ${START} ~ ${abortedAt || END} (${totalDays}일 처리${abortedAt ? `, 원래 목표는 ${END}까지였음` : ''}) / ` +
     `원본주문 총 ${totalRawOrders}건 / 매칭 총 ${totalMatchedOrders}건 / 시각없음 총 ${totalSkippedNoTime}건 / ` +
     `품목없음 총 ${totalSkippedNoItems}건 / 전일이월 총 ${totalCarryOrders}건 / 실패 총 ${totalFailed.length}건`
   );
+  if (abortedAt) {
+    console.log(`\n▶ 이어서 실행할 값: HOUR_BACKFILL_START=${nextDate_(abortedAt)}, HOUR_BACKFILL_END=${END}`);
+  }
   if (stillZeroDates.length) {
     console.log(
       `\n⚠️ 재시도해도 끝내 0건이었던 날짜 ${stillZeroDates.length}개 (실제 휴무 또는 API 문제 가능성 — 수동 확인 권장):\n` +
