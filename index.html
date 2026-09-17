@@ -1420,6 +1420,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
             <div id="cannibalTitle" style="font-size:12px;color:#7eb8e8;font-weight:700;">🍽️ 기본메뉴(앙버터·팥·레몬버터·딸기) + 신메뉴(레드벨벳) 카니발리즘 분석</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <select id="cannibalManagerSel" onchange="onCannibalManagerChange()" style="font-size:11px;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;">
+                <option value="all">담당자 전체</option>
+              </select>
               <div id="cannibalMetricToggle" style="display:flex;gap:4px;"></div>
             </div>
           </div>
@@ -8836,8 +8839,39 @@ const NEW_MENU_SUB_COLORS = { '레드벨벳': '#c026d3', '쑥': '#4ade80', '청�
 const NEW_MENU_SUB_KEYWORDS = { '레드벨벳': ['레드벨벳'], '쑥': ['쑥'], '청사과': ['청사과'] };
 let cannibalProduct = '신메뉴';
 let cannibalMetric = 'qty'; // 'qty' | 'amt'
+let cannibalManagerFilter = 'all'; // '全' 또는 특정 담당자명
 function cannibalValue(name, qty) {
   return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
+}
+// 해당 row(매장 단위 판매 데이터)가 현재 선택된 담당자 필터에 해당하는지 확인.
+// 26년 1~8월 데이터는 매장(row['매장']) 기준이라 필터가 그대로 적용되지만,
+// 25년 12월 추정치·9~11월 출시전 데이터는 매장 구분이 없는 전사 합산 상수라서 필터를 적용할 수 없다.
+function cannibalRowMatchesManager(row) {
+  if (cannibalManagerFilter === 'all') return true;
+  return getManagerForStore(row['매장']) === cannibalManagerFilter;
+}
+const CANNIBAL_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','박영태 대리','강동우 사원','이현민 사원'];
+function cannibalPopulateManagerSel() {
+  const sel = document.getElementById('cannibalManagerSel');
+  if (!sel || sel.__populated) return;
+  const present = new Set((window.ALL || (typeof ALL !== 'undefined' ? ALL : [])).map(b => b.manager).filter(Boolean));
+  const sorted = [...CANNIBAL_MANAGER_ORDER.filter(m => present.has(m)), ...[...present].filter(m => !CANNIBAL_MANAGER_ORDER.includes(m)).sort()];
+  sorted.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  sel.__populated = true;
+}
+function onCannibalManagerChange() {
+  const sel = document.getElementById('cannibalManagerSel');
+  cannibalManagerFilter = sel ? sel.value : 'all';
+  updateCannibalTexts();
+  renderCannibalPieChart();
+  renderCannibalBarChart();
+  renderCannibalStackedBarChart();
+  renderCannibalPeriodTable();
+  renderCannibalNewMenuBreakdownChart();
 }
 let CANNIBAL_CATEGORIES = [];
 let CANNIBAL_COLORS = {};
@@ -8873,6 +8907,7 @@ function computeCannibalTotals() {
   [1, 2, 3, 4, 5, 6, 7, 8].forEach(m => {
     const data = MENU_DATA_BY_MONTH[m] || [];
     data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
       const name = row['상품명'] || '';
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
@@ -8895,6 +8930,7 @@ function computeCannibalDecTotals() {
   [1, 2].forEach(m => {
     const data = MENU_DATA_BY_MONTH[m] || [];
     data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
       const name = row['상품명'] || '';
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
@@ -8904,6 +8940,9 @@ function computeCannibalDecTotals() {
       matched.forEach(c => totals[c] += share);
     });
   });
+  // 레드벨벳 12월 실제 출시 데이터(REDVELVET_DEC_TOTAL_QTY)는 매장 구분이 없는 전사 합산 상수라
+  // 담당자 필터를 적용할 수 없어, 특정 담당자를 선택하면 이 부분은 제외하고 0으로 처리한다.
+  if (cannibalManagerFilter !== 'all') return totals;
   if (CANNIBAL_CATEGORIES.includes(NEW_MENU_LABEL)) {
     Object.entries(REDVELVET_DEC_TOTAL_QTY).forEach(([name, qty]) => {
       const matched = cannibalMatchCategories(name);
@@ -8922,6 +8961,7 @@ function computeCannibalMonthlyPercents() {
     const totals = {};
     CANNIBAL_CATEGORIES.forEach(c => totals[c] = 0);
     data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
       const name = row['상품명'] || '';
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
@@ -8965,6 +9005,7 @@ function computeCannibalCumulativeTotals() {
   const monthEntries = months.map(m => {
     const data = MENU_DATA_BY_MONTH[m] || [];
     data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
       const name = row['상품명'] || '';
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
@@ -9392,7 +9433,7 @@ function renderCannibalPeriodTable() {
   html += `</tbody></table>
   <div style="font-size:9.5px;color:#5f7d95;margin-top:8px;">* 9~11월 데이터는 매장 구분 없는 전사 합산치이며, 해당 기간에는 신메뉴가 아직 출시되지 않아 판매량이 없습니다(0%).<br>
   * 25년 12월 데이터 중 앙버터/팥/레몬버터/딸기는 12월 전체 데이터가 없어 1·2월 평균으로 추정했고, 신메뉴는 레드벨벳의 12월 실제 출시 데이터를 사용했습니다(쑥·청사과는 12월 시점 미출시로 0%).<br>
-  * "신메뉴" 행 아래 └ 레드벨벳/쑥/청사과는 신메뉴 합산 비중을 3종으로 나눈 세부 행이며, 3종 모두 출시 전(9~11월)에는 판매가 없어 출시전 평균은 0%로 표시됩니다.</div>`;
+  * "신메뉴" 행 아래 └ 레드벨벳/쑥/청사과는 신메뉴 합산 비중을 3종으로 나눈 세부 행이며, 3종 모두 출시 전(9~11월)에는 판매가 없어 출시전 평균은 0%로 표시됩니다.${cannibalManagerFilter !== 'all' ? '<br>* 담당자 필터가 적용된 화면입니다. 9~11월·12월 데이터는 매장 구분이 없는 전사 합산치라 담당자 필터가 반영되지 않고(12월 신메뉴 수치는 0으로 제외), 26년 1~8월 데이터만 선택한 담당자 기준으로 집계됩니다.' : ''}</div>`;
   el.innerHTML = html;
 }
 
@@ -9406,7 +9447,7 @@ function updateCannibalTexts() {
   const periodTitleEl = document.getElementById('cannibalPeriodTitle');
   const periodDescEl = document.getElementById('cannibalPeriodDesc');
   const unitWord = cannibalMetric === 'amt' ? '매출금액' : '판매수량';
-  if (titleEl) titleEl.textContent = `🍽️ 기본메뉴(앙버터·팥·레몬버터·딸기) + ${newMenuLabel} 카니발리즘 분석`;
+  if (titleEl) titleEl.textContent = `🍽️ 기본메뉴(앙버터·팥·레몬버터·딸기) + ${newMenuLabel} 카니발리즘 분석${cannibalManagerFilter !== 'all' ? ` · ${cannibalManagerFilter}` : ''}`;
   if (descEl) descEl.textContent = `${newMenuLabel}는 ${cfg.launchLabel}에 순차 출시된 신메뉴입니다. 기본 4개 맛과 신메뉴 전체 비중이 어떻게 달라졌는지 확인하는 탭입니다. 아래 "신메뉴 세부 비교"에서 3종 개별 수량/금액과 추이를 함께 볼 수 있습니다.`;
   if (barTitleEl) barTitleEl.textContent = `📊 월별 비중 추이 (%기준) — 신메뉴 등장 이후 다른 맛의 비중 변화 확인`;
   if (stackedTitleEl) stackedTitleEl.textContent = `📈 월별 누적 ${unitWord} 추이 (${cannibalMetric === 'amt' ? '원' : '개수'} 기준 · 비중 % 함께 표시)`;
@@ -9442,9 +9483,12 @@ function computeNewMenuSubMonthly() {
   // 25년 12월: 레드벨벳만 실제 출시 데이터 존재, 쑥·청사과는 출시 전이라 0
   const decValues = {};
   subs.forEach(s => decValues[s] = 0);
-  Object.entries(REDVELVET_DEC_TOTAL_QTY).forEach(([name, qty]) => {
-    decValues['레드벨벳'] += cannibalValue(name, qty);
-  });
+  // 레드벨벳 12월 실제 출시 데이터는 매장 구분 없는 전사 합산 상수라 담당자 필터를 적용할 수 없음.
+  if (cannibalManagerFilter === 'all') {
+    Object.entries(REDVELVET_DEC_TOTAL_QTY).forEach(([name, qty]) => {
+      decValues['레드벨벳'] += cannibalValue(name, qty);
+    });
+  }
   const decEntry = { month: 0, label: '25년 12월*', hasData: true, values: decValues };
 
   const monthEntries = months.map(m => {
@@ -9452,6 +9496,7 @@ function computeNewMenuSubMonthly() {
     const values = {};
     subs.forEach(s => values[s] = 0);
     data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
       const name = row['상품명'] || '';
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
@@ -11653,6 +11698,7 @@ function switchMenuAnalysisSubtab(n) {
   } else if (n === 6) {
     renderNewMenuPositionTab();
   } else if (n === 7) {
+    cannibalPopulateManagerSel();
     renderCannibalMetricToggle();
     updateCannibalTexts();
     renderCannibalPieChart();
