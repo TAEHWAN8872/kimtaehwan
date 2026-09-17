@@ -1428,6 +1428,16 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           </div>
           <div id="cannibalDesc" style="font-size:11px;color:#6b8fa8;margin-bottom:14px;">레드벨벳은 25년 12월에 출시된 신메뉴입니다. 기존 4개 맛의 비중이 레드벨벳 출시 이후 얼마나 잠식됐는지 확인하는 탭입니다.</div>
 
+          <div id="cannibalManagerStoreBox" style="display:none;margin-bottom:16px;padding:10px 12px;background:#0d1b2a;border:0.5px solid #1e3347;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+              <div id="cannibalManagerStoreTitle" style="font-size:11.5px;color:#7eb8e8;font-weight:700;"></div>
+              <input id="cannibalManagerStoreSearch" type="text" placeholder="매장명 검색..." autocomplete="off"
+                oninput="renderCannibalManagerStoreList()"
+                style="font-size:11px;padding:4px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;width:140px;">
+            </div>
+            <div id="cannibalManagerStoreList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </div>
+
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
             <div style="position:relative;width:260px;height:260px;flex-shrink:0;">
               <canvas id="cannibalPieChart"></canvas>
@@ -8872,6 +8882,34 @@ function onCannibalManagerChange() {
   renderCannibalStackedBarChart();
   renderCannibalPeriodTable();
   renderCannibalNewMenuBreakdownChart();
+  renderCannibalManagerStoreList();
+}
+// 담당자 필터 선택 시 해당 담당자가 관리하는 매장 목록을 칩 형태로 표시(검색창으로 매장명 검색 가능).
+// '담당자 전체' 선택 시에는 목록을 숨긴다.
+function renderCannibalManagerStoreList() {
+  const box = document.getElementById('cannibalManagerStoreBox');
+  const listEl = document.getElementById('cannibalManagerStoreList');
+  const titleEl = document.getElementById('cannibalManagerStoreTitle');
+  if (!box || !listEl || !titleEl) return;
+  if (cannibalManagerFilter === 'all') {
+    box.style.display = 'none';
+    listEl.innerHTML = '';
+    return;
+  }
+  box.style.display = '';
+  const all = (window.ALL || (typeof ALL !== 'undefined' ? ALL : []));
+  let stores = all.filter(b => b.manager === cannibalManagerFilter).map(b => b.name).sort((a, b) => a.localeCompare(b, 'ko'));
+  const searchEl = document.getElementById('cannibalManagerStoreSearch');
+  const kw = (searchEl ? searchEl.value : '').trim();
+  const filtered = kw ? stores.filter(n => n.includes(kw)) : stores;
+  titleEl.textContent = `🏪 ${cannibalManagerFilter} 담당 매장 (${filtered.length}/${stores.length}개)`;
+  if (!filtered.length) {
+    listEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">${kw ? '검색 결과가 없습니다.' : '해당 담당자의 매장이 없습니다.'}</div>`;
+    return;
+  }
+  listEl.innerHTML = filtered.map(n =>
+    `<span style="font-size:11px;padding:4px 10px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:12px;">${n}</span>`
+  ).join('');
 }
 let CANNIBAL_CATEGORIES = [];
 let CANNIBAL_COLORS = {};
