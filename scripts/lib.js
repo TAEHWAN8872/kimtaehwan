@@ -622,10 +622,22 @@ function buildProductCategoryMap(products) {
  * 시(HH) 부분을 뽑아 쓴다. SA_DT가 없거나 형식이 예상과 다른 주문, 아직
  * 품목상세(REQ_CODE 6)가 안 잡힌 주문은 이번 회차 집계에서 제외한다(다음
  * 회차에 품목상세가 들어오면 자동으로 반영됨).
- * 반환: { rows: [{SDA_DT, hour, CMDT_NM, qty, amount}, ...],
- *         matchedOrders, skippedNoTime, skippedNoItems } (뒤 3개는 진단용 개수)
+ *
+ * [2026-09-17 추가: 마감 지연(익일이월) 처리] 매장이 전날 영업을 마감하지
+ * 않고 다음날 아침에야 마감하면, 전날 저녁에 실제로 결제된 주문(SA_DT는
+ * 전날 저녁 시각)이 tpay상 "다음날" 영업일(SDA_DT)로 잡힌다(실측 확인:
+ * 안산중앙점, 9/16 19:06·19:14 결제 건이 9/17 영업일로 마감됨). 이걸 그대로
+ * SA_DT의 시(HH)만 뽑아 시간대에 넣으면 "오늘 19시에 팔렸다"처럼 보여서
+ * 오해를 준다. 그래서 주문의 실제 달력 날짜(SA_DT의 날짜 부분)가 영업일
+ * (SDA_DT)과 다르면 "이월 주문"으로 보고, 일반 시간대(0~23) 대신 특수값
+ * hour=24("전일 마감 이월")로 몰아서 반환한다. 프론트엔드는 hour 0~23은
+ * 평소처럼 시간대 열로, hour=24는 별도의 "전일 마감 이월" 열로 구분해서
+ * 보여줘야 한다.
+ * 반환: { rows: [{SDA_DT, hour, CMDT_NM, qty, amount}, ...] (hour: 0~23 또는 24=이월),
+ *         matchedOrders, skippedNoTime, skippedNoItems, carryOrders } (뒤 4개는 진단용 개수)
  */
 function aggregateOrdersAndItemsToHourProducts(orders, rawItemRows) {
+  const CARRY_HOUR = 24; // 전일 마감 이월 전용 sentinel (실제 시간대 0~23과 겹치지 않음)
   const linesBySaNo = {};
   for (const r of rawItemRows) {
     const key = String(r.SA_NO);
@@ -634,14 +646,21 @@ function aggregateOrdersAndItemsToHourProducts(orders, rawItemRows) {
   }
 
   const byKey = {};
-  let matchedOrders = 0, skippedNoTime = 0, skippedNoItems = 0;
+  let matchedOrders = 0, skippedNoTime = 0, skippedNoItems = 0, carryOrders = 0;
   for (const o of orders) {
     const timePart = typeof o.SA_DT === 'string' ? o.SA_DT.slice(11, 13) : '';
-    const hour = Number(timePart);
-    if (!timePart || Number.isNaN(hour) || hour < 0 || hour > 23) { skippedNoTime++; continue; }
+    const realHour = Number(timePart);
+    if (!timePart || Number.isNaN(realHour) || realHour < 0 || realHour > 23) { skippedNoTime++; continue; }
     const lines = linesBySaNo[String(o.SA_NO)];
     if (!lines || !lines.length) { skippedNoItems++; continue; }
     matchedOrders++;
+
+    // SA_DT의 달력 날짜(yyyy-mm-dd -> yyyymmdd)가 영업일(SDA_DT)과 다르면 이월 주문
+    const saCalendarDate = typeof o.SA_DT === 'string' ? o.SA_DT.slice(0, 10).replace(/-/g, '') : '';
+    const isCarry = saCalendarDate && o.SDA_DT && saCalendarDate !== o.SDA_DT;
+    if (isCarry) carryOrders++;
+    const hour = isCarry ? CARRY_HOUR : realHour;
+
     for (const r of lines) {
       if (FILTER_SET_COMPONENTS && r.OPTION_GBN === 'S') continue; // 세트구성품 제외
       if (FILTER_CANCELLED && CANCELLED_SC_FORMS.includes(r.SC_FORM)) continue; // 취소/반품 제외
@@ -651,7 +670,7 @@ function aggregateOrdersAndItemsToHourProducts(orders, rawItemRows) {
       byKey[key].amount += Number(r.SC_AMT_TTL || 0);
     }
   }
-  return { rows: Object.values(byKey), matchedOrders, skippedNoTime, skippedNoItems };
+  return { rows: Object.values(byKey), matchedOrders, skippedNoTime, skippedNoItems, carryOrders };
 }
 
 module.exports = {
