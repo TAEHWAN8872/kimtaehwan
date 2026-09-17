@@ -101,7 +101,7 @@ async function main() {
 
   let totalDays = 0;
   let totalFailed = [];
-  let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0;
+  let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0, totalCarryOrders = 0;
 
   for (let date = START; date <= END; date = nextDate_(date)) {
     const ym = date.slice(0, 6);
@@ -116,7 +116,7 @@ async function main() {
       products.forEach((name, i) => { productIndexMap[name] = i; });
     }
 
-    let dateMatched = 0, dateSkippedNoTime = 0, dateSkippedNoItems = 0, dateFailed = 0;
+    let dateMatched = 0, dateSkippedNoTime = 0, dateSkippedNoItems = 0, dateCarry = 0, dateFailed = 0;
 
     for (let i = 0; i < storeMap.length; i++) {
       const [name, code] = storeMap[i];
@@ -136,12 +136,13 @@ async function main() {
           dateFailed++;
           totalFailed.push(`${date} ${code}(${name}) 품목조회: ${detail.error}`);
         } else {
-          const { rows, matchedOrders, skippedNoTime, skippedNoItems } =
+          const { rows, matchedOrders, skippedNoTime, skippedNoItems, carryOrders } =
             aggregateOrdersAndItemsToHourProducts(orderResult.orders, detail.rows || []);
           hourRows = rows;
           dateMatched += matchedOrders;
           dateSkippedNoTime += skippedNoTime;
           dateSkippedNoItems += skippedNoItems;
+          dateCarry += carryOrders;
         }
       }
 
@@ -159,10 +160,11 @@ async function main() {
     totalMatchedOrders += dateMatched;
     totalSkippedNoTime += dateSkippedNoTime;
     totalSkippedNoItems += dateSkippedNoItems;
+    totalCarryOrders += dateCarry;
     totalDays++;
     console.log(
       `${date} 완료 — 매칭된 주문 ${dateMatched}건 / 시각없음 ${dateSkippedNoTime}건 / ` +
-      `품목없음 ${dateSkippedNoItems}건 / 실패 ${dateFailed}건`
+      `품목없음 ${dateSkippedNoItems}건 / 전일이월 ${dateCarry}건 / 실패 ${dateFailed}건`
     );
   }
 
@@ -171,7 +173,7 @@ async function main() {
   console.log(
     `\n백필 완료: ${START} ~ ${END} (${totalDays}일) / ` +
     `매칭된 주문 총 ${totalMatchedOrders}건 / 시각없음 총 ${totalSkippedNoTime}건 / ` +
-    `품목없음 총 ${totalSkippedNoItems}건 / 실패 총 ${totalFailed.length}건`
+    `품목없음 총 ${totalSkippedNoItems}건 / 전일이월 총 ${totalCarryOrders}건 / 실패 총 ${totalFailed.length}건`
   );
   if (totalFailed.length) {
     console.log('실패 내역(최대 30개):\n' + totalFailed.slice(0, 30).join('\n'));
