@@ -54,6 +54,9 @@
 //     조기 종료됐다면 마지막으로 실패한 날짜를 START로 삼아 새 workflow_dispatch를
 //     다시 실행해서 이어받을 것 — 같은 세션에서 기다리는 것보다 새 세션(새 러너)에서
 //     다시 시작하는 쪽이 회복 확률이 높은 것으로 보인다(실측 근거는 스크립트 상단 주석 참고).
+//   HOUR_BACKFILL_CHAIN_DEPTH (yml이 자동 재실행 시 내부적으로 넣어주는 값, 사람이
+//     직접 돌릴 때는 비워두면 0) / HOUR_BACKFILL_MAX_CHAIN_DEPTH (선택, 기본 5 =
+//     자동 재실행을 몇 번까지 허용할지 — 넘으면 자동 재실행을 멈추고 사람이 확인하게 함)
 //
 // [진행 방식] 날짜를 하루씩 순회하면서, 그 날짜의 매장별 REQ_CODE 3·6을
 // 조회해서 SA_NO로 조인 → 시간대별 상품 집계 → 월별 파일의 해당 일(day)
@@ -98,6 +101,15 @@ const COOLDOWN_MS = Number(process.env.HOUR_BACKFILL_COOLDOWN_MS || 30000);
 // 지금까지 결과를 저장하고 종료한다. 이러면 새 workflow_dispatch(=새 러너·새 세션)를
 // 이어서 돌려 회복 여부를 시험해볼 수 있다 — START를 마지막 실패 날짜로 넣어 재실행.
 const ABORT_AFTER_CONSECUTIVE_STILL_ZERO = Number(process.env.HOUR_BACKFILL_ABORT_AFTER_CONSECUTIVE_STILL_ZERO || 2);
+
+// [2026-09-17 추가: 자동 이어달리기] 조기 종료할 때마다 사람이 매번 START/END를 복사해
+// 새 workflow_dispatch를 눌러주는 건 현실적으로 지치는 일이라, yml 쪽에서 이 스크립트의
+// 종료 output(continue_start/continue_end)을 읽어 자동으로 다음 구간을 재실행하도록
+// 만든다. 다만 정말로 "토큰 자체가 하루 단위로 막힌" 경우라면 자동 재실행이 계속
+// 실패만 반복할 수 있으므로, 체인 깊이를 세서 일정 횟수(기본 5) 넘으면 자동 재실행을
+// 멈추고 사람이 직접 확인하도록 한다.
+const CHAIN_DEPTH = Number(process.env.HOUR_BACKFILL_CHAIN_DEPTH || 0);
+const MAX_CHAIN_DEPTH = Number(process.env.HOUR_BACKFILL_MAX_CHAIN_DEPTH || 5);
 
 function hourPath_(ym) {
   return path.join(HOUR_DIR, `hour-${ym}.json`);
@@ -222,7 +234,8 @@ async function main() {
   console.log(
     `시간대별 매출 백필 시작: ${START} ~ ${END}, 매장 ${storeMap.length}개${codeFilter.length ? ' (지정 매장만)' : ''} ` +
     `(0건 전체 재시도 최대 ${ZERO_DAY_MAX_RETRIES}회, ${ZERO_DAY_RETRY_DELAY_MS / 1000}초 간격 / ` +
-    `매장간 ${STORE_DELAY_MS}ms / ${COOLDOWN_EVERY_DAYS}일마다 ${COOLDOWN_MS / 1000}초 쿨다운)`
+    `매장간 ${STORE_DELAY_MS}ms / ${COOLDOWN_EVERY_DAYS}일마다 ${COOLDOWN_MS / 1000}초 쿨다운)` +
+    (CHAIN_DEPTH > 0 ? ` [자동 재실행 체인 ${CHAIN_DEPTH}/${MAX_CHAIN_DEPTH}]` : '')
   );
 
   let currentYm = null;
@@ -301,12 +314,27 @@ async function main() {
     // 이어받는 걸 권장.
     if (ABORT_AFTER_CONSECUTIVE_STILL_ZERO > 0 && consecutiveStillZero >= ABORT_AFTER_CONSECUTIVE_STILL_ZERO && date < END) {
       abortedAt = date;
-      console.log(
-        `\n🛑 ${date}까지 연속 ${consecutiveStillZero}일 재시도해도 0건 — 이 세션이 막힌 것으로 보고 여기서 조기 종료합니다.\n` +
-        `   남은 구간(${nextDate_(date)} ~ ${END})은 새 workflow_dispatch를 다시 실행해서 이어받으세요` +
-        `(HOUR_BACKFILL_START=${nextDate_(date)}, HOUR_BACKFILL_END=${END}). 같은 세션에서 더 기다리는 것보다` +
-        ` 새 러너에서 다시 시작하는 쪽이 회복 확률이 높은 것으로 보입니다.`
-      );
+      const nextStart = nextDate_(date);
+      if (CHAIN_DEPTH >= MAX_CHAIN_DEPTH) {
+        console.log(
+          `\n🛑 ${date}까지 연속 ${consecutiveStillZero}일 재시도해도 0건 — 이 세션이 막힌 것으로 보고 여기서 조기 종료합니다.\n` +
+          `   자동 재실행 체인이 이미 ${CHAIN_DEPTH}회라 상한(${MAX_CHAIN_DEPTH})에 도달했습니다 — 더 이상 자동 재실행하지 않고 멈춥니다.\n` +
+          `   ${CHAIN_DEPTH}번 연속 실패했다는 건 "새 세션으로 갈아타면 회복"이라는 가설이 틀렸거나(예: 토큰 자체의 일일 누적 상한),\n` +
+          `   다른 원인이 있을 가능성이 높으니 수동으로 확인해주세요. 이어서 돌릴 구간: HOUR_BACKFILL_START=${nextStart}, HOUR_BACKFILL_END=${END}.`
+        );
+      } else {
+        console.log(
+          `\n🛑 ${date}까지 연속 ${consecutiveStillZero}일 재시도해도 0건 — 이 세션이 막힌 것으로 보고 여기서 조기 종료합니다.\n` +
+          `   새 workflow_dispatch(체인 ${CHAIN_DEPTH + 1}/${MAX_CHAIN_DEPTH})로 다음 구간을 자동 이어받습니다: ` +
+          `HOUR_BACKFILL_START=${nextStart}, HOUR_BACKFILL_END=${END}.`
+        );
+        if (process.env.GITHUB_OUTPUT) {
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `continue_start=${nextStart}\ncontinue_end=${END}\ncontinue_depth=${CHAIN_DEPTH + 1}\n`
+          );
+        }
+      }
       break;
     }
 
