@@ -5841,8 +5841,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     return out;
   }
 
-  // 00시~01시 ... 23시~24시
-  function hrHourLabel_(h){ return `${String(h).padStart(2,'0')}시~${String(h+1).padStart(2,'0')}시`; }
+  // 00시~01시 ... 23시~24시. 24는 "전일 마감 이월"(마감이 늦어 전날 저녁 매출이
+  // 다음날 영업일로 잡힌 것) 전용 값이라 시간대가 아니라 별도 라벨을 쓴다.
+  function hrHourLabel_(h){
+    if(h === 24) return '전일 마감 이월';
+    return `${String(h).padStart(2,'0')}시~${String(h+1).padStart(2,'0')}시`;
+  }
 
   async function fetchHourMonth_(ym){
     if(window.__liveHrMonthCache[ym] !== undefined) return window.__liveHrMonthCache[ym];
@@ -5967,8 +5971,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     const storeSeen = new Map();
     const rowMap = new Map();
-    const colQty = new Array(24).fill(0);
-    const colAmt = new Array(24).fill(0);
+    // 인덱스 0~23: 실제 시간대. 24: 전일 마감 이월(별도 열로 표시, 시간대 열엔 안 섞음)
+    const colQty = new Array(25).fill(0);
+    const colAmt = new Array(25).fill(0);
 
     liveHrIterate_(r => {
       const manager = mgrOf(r.code, r.name);
@@ -5984,7 +5989,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       let row = rowMap.get(key);
       if(!row){
         row = { key, label, manager: (mode === 'store' ? (manager || '-') : '-'),
-                qty: new Array(24).fill(0), amt: new Array(24).fill(0), totQty: 0, totAmt: 0, stores: new Set() };
+                qty: new Array(25).fill(0), amt: new Array(25).fill(0), totQty: 0, totAmt: 0, stores: new Set() };
         rowMap.set(key, row);
       }
       row.qty[r.hour] += r.qty;
@@ -6011,7 +6016,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       if(hideEmpty && !colAmt[h] && !colQty[h]) continue;
       hours.push(h);
     }
-    if(!hours.length){ wrap.innerHTML = `<div class="live-empty">조회된 매출이 없어요.</div>`; return; }
+    const hasCarry = colQty[24] > 0 || colAmt[24] > 0; // 전일 마감 이월 데이터가 하나라도 있으면 별도 열 추가
+    if(!hours.length && !hasCarry){ wrap.innerHTML = `<div class="live-empty">조회된 매출이 없어요.</div>`; return; }
 
     const grandQty = colQty.reduce((a,b)=>a+b, 0);
     const grandAmt = colAmt.reduce((a,b)=>a+b, 0);
@@ -6026,39 +6032,52 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     };
 
     const headHours = hours.map(h => `<th style="text-align:right;white-space:nowrap;">${hrHourLabel_(h)}</th>`).join('');
+    const carryHeadHtml = hasCarry
+      ? `<th style="text-align:right;white-space:nowrap;background:#2a2038;color:#c9a8ff;" title="마감이 늦어 전날 저녁 매출이 다음날 영업일로 잡힌 주문입니다. 실제 판매 시각이 아니라 마감 처리 결과이니 참고만 해주세요.">⚠️ ${hrHourLabel_(24)}</th>`
+      : '';
     const firstColLabel = (mode === 'store') ? `매장명 (${rows.length}개)` : (mode === 'day' ? '날짜' : '월');
 
     // 전체 합계 행
     const totalCells = hours.map(h => `<td style="text-align:right;">${cellHtml(colQty[h], colAmt[h], false)}</td>`).join('');
+    const totalCarryCell = hasCarry
+      ? `<td style="text-align:right;background:#1c1730;">${cellHtml(colQty[24], colAmt[24], false)}</td>` : '';
     const totalRow = `<tr style="background:#122c42;font-weight:700;">
         <td style="text-align:center;">전체 합계</td>
         ${mode === 'store' ? '<td style="text-align:center;">-</td>' : ''}
         <td style="text-align:right;">${grandAmt.toLocaleString()}<div style="font-size:10px;color:#6b8fa8;">${grandQty.toLocaleString()}개</div></td>
-        ${totalCells}
+        ${totalCells}${totalCarryCell}
       </tr>`;
 
     const bodyRows = rows.map(row => {
-      const peak = Math.max(...row.amt);
+      const peak = Math.max(...row.amt.slice(0, 24)); // 전일 이월(idx24)은 "가장 잘 팔린 시간"이 아니므로 peak 계산에서 제외
       const cells = hours.map(h => {
         const clickable = (row.qty[h] || row.amt[h]);
         const onclick = clickable ? ` onclick="window.showLiveHrDetail('${row.key}',${h})" style="text-align:right;cursor:pointer;" title="클릭하면 이 시간대에 팔린 상품을 볼 수 있어요"` : ' style="text-align:right;"';
         return `<td${onclick}>${cellHtml(row.qty[h], row.amt[h], peak > 0 && row.amt[h] === peak)}</td>`;
       }).join('');
+      const carryClickable = row.qty[24] || row.amt[24];
+      const carryCellHtml = hasCarry
+        ? `<td${carryClickable ? ` onclick="window.showLiveHrDetail('${row.key}',24)" style="text-align:right;cursor:pointer;background:#1c1730;" title="클릭하면 이월된 상품을 볼 수 있어요"` : ' style="text-align:right;background:#1c1730;"'}>${cellHtml(row.qty[24], row.amt[24], false)}</td>`
+        : '';
       return `<tr>
           <td style="text-align:center;">${row.label}</td>
           ${mode === 'store' ? `<td style="text-align:center;">${row.manager}</td>` : ''}
           <td style="text-align:right;font-weight:600;">${row.totAmt.toLocaleString()}<div style="font-size:10px;color:#6b8fa8;">${row.totQty.toLocaleString()}개</div></td>
-          ${cells}
+          ${cells}${carryCellHtml}
         </tr>`;
     }).join('');
 
     const missingMsg = (window.__liveHrMissing && window.__liveHrMissing.length)
       ? `<div style="padding:8px 12px;color:#e0a555;font-size:12px;">※ 아직 수집되지 않은 월이 있어요: ${window.__liveHrMissing.map(m => `${m.slice(0,4)}년 ${+m.slice(4,6)}월`).join(', ')}</div>`
       : '';
+    const carryNote = hasCarry
+      ? `<div style="padding:2px 12px 8px;color:#c9a8ff;font-size:11.5px;">⚠️ "전일 마감 이월"은 매장이 전날 마감을 늦게 처리해서 전날 저녁 매출이 다음날 영업일로 잡힌 것입니다 — 실제로 그 시간에 팔린 게 아니니 참고만 해주세요.</div>`
+      : '';
 
     wrap.innerHTML = `
       ${missingMsg}
       <div style="padding:2px 12px 8px;color:#6b8fa8;font-size:11.5px;">시간대 칸을 클릭하면 그 시간에 팔린 상품이 나옵니다.</div>
+      ${carryNote}
       <div class="live-table-card">
         <div class="live-table-scroll">
           <table class="live-table">
@@ -6066,21 +6085,22 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
               <th style="text-align:center;">${firstColLabel}</th>
               ${mode === 'store' ? '<th style="text-align:center;">담당자</th>' : ''}
               <th style="text-align:right;">합계</th>
-              ${headHours}
+              ${headHours}${carryHeadHtml}
             </tr></thead>
             <tbody>${totalRow}${bodyRows}</tbody>
           </table>
         </div>
       </div>`;
 
-    // 엑셀 다운로드용 캐시 (화면에 보이는 필터/시간대 그대로)
+    // 엑셀 다운로드용 캐시 (화면에 보이는 필터/시간대 그대로, 이월 열도 있으면 포함)
     window.__liveExportCache = window.__liveExportCache || {};
     const header = [firstColLabel.replace(/\s*\(.*\)$/, ''), ...(mode === 'store' ? ['담당자'] : []),
-      '합계금액', '합계수량', ...hours.flatMap(h => [`${hrHourLabel_(h)} 금액`, `${hrHourLabel_(h)} 수량`])];
+      '합계금액', '합계수량', ...hours.flatMap(h => [`${hrHourLabel_(h)} 금액`, `${hrHourLabel_(h)} 수량`]),
+      ...(hasCarry ? ['전일 마감 이월 금액', '전일 마감 이월 수량'] : [])];
     const totalRowX = ['전체 합계', ...(mode === 'store' ? ['-'] : []), grandAmt, grandQty,
-      ...hours.flatMap(h => [colAmt[h], colQty[h]])];
+      ...hours.flatMap(h => [colAmt[h], colQty[h]]), ...(hasCarry ? [colAmt[24], colQty[24]] : [])];
     const bodyRowsX = rows.map(row => [row.label, ...(mode === 'store' ? [row.manager] : []), row.totAmt, row.totQty,
-      ...hours.flatMap(h => [row.amt[h], row.qty[h]])]);
+      ...hours.flatMap(h => [row.amt[h], row.qty[h]]), ...(hasCarry ? [row.amt[24], row.qty[24]] : [])]);
     window.__liveExportCache.hour = { header, rows: [totalRowX, ...bodyRowsX] };
   };
 
@@ -6126,8 +6146,13 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       `매출 ${totAmt.toLocaleString()}원 · ${totQty.toLocaleString()}개 · 상품 ${prods.length}종`;
 
     const body = document.getElementById('liveHrDetailBody');
+    const carryNoteHtml = (hour === 24)
+      ? `<div style="font-size:12px;color:#c9a8ff;background:#1c1730;border-radius:8px;padding:8px 12px;margin-bottom:2px;">
+          ⚠️ 마감이 늦어 전날 저녁 매출이 이 영업일로 잡힌 주문입니다. 실제 판매 시각은 전날 저녁입니다.
+        </div>`
+      : '';
     if(!prods.length){
-      body.innerHTML = `<div style="color:#6b8fa8;font-size:13px;padding:8px 0;">이 시간대에 판매된 상품이 없어요.</div>`;
+      body.innerHTML = carryNoteHtml + `<div style="color:#6b8fa8;font-size:13px;padding:8px 0;">${hour === 24 ? '이월된' : '이 시간대에'} 판매된 상품이 없어요.</div>`;
     } else {
       const prodHtml = prods.map(([name, v]) => `
         <div style="display:flex;justify-content:space-between;gap:10px;padding:9px 12px;
@@ -6148,7 +6173,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
               <div style="font-size:12.5px;color:#a9c4dc;">${v.amt.toLocaleString()}원 · ${v.qty.toLocaleString()}개</div>
             </div>`).join('')}`;
       }
-      body.innerHTML = prodHtml + storeHtml;
+      body.innerHTML = carryNoteHtml + prodHtml + storeHtml;
     }
     document.getElementById('liveHrDetailModal').classList.add('open');
   };
