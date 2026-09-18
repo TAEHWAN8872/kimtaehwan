@@ -1442,6 +1442,11 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
             <div id="cannibalManagerStoreList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
           </div>
 
+          <div id="cannibalBulkRowsBox" style="margin-bottom:16px;padding:10px 12px;background:#0d1b2a;border:0.5px solid #3a2a1e;border-radius:8px;">
+            <div id="cannibalBulkRowsTitle" style="font-size:11.5px;color:#fb923c;font-weight:700;margin-bottom:6px;"></div>
+            <div id="cannibalBulkRowsTable" style="overflow-x:auto;"></div>
+          </div>
+
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
             <div style="position:relative;width:260px;height:260px;flex-shrink:0;">
               <canvas id="cannibalPieChart"></canvas>
@@ -8870,6 +8875,58 @@ function onCannibalExcludeBulkChange(checked) {
 function cannibalShouldExcludeBulkNewMenu(matched, qty) {
   return cannibalExcludeBulk && matched.includes(NEW_MENU_LABEL) && qty >= CANNIBAL_BULK_QTY_THRESHOLD;
 }
+// 현재 담당자/매장 필터 기준으로, "신메뉴 한 매장-한 달 판매량이 10개 이상"인 원본 데이터 줄을
+// 그대로 모아서 보여준다. 체크박스를 켜면 실제로 이 목록이 집계에서 빠지므로,
+// 켜기 전에 "정말 대량/시범 판매가 맞는지" 눈으로 먼저 확인할 수 있게 하기 위한 진단용 표.
+function collectCannibalBulkRows() {
+  const months = [1, 2, 3, 4, 5, 6, 7, 8];
+  const rows = [];
+  months.forEach(m => {
+    const data = MENU_DATA_BY_MONTH[m] || [];
+    data.forEach(row => {
+      if (!cannibalRowMatchesManager(row)) return;
+      const name = row['상품명'] || '';
+      const qty = row['수량'] || 0;
+      if (qty <= 0) return;
+      const matched = cannibalMatchCategories(name);
+      if (!matched.includes(NEW_MENU_LABEL)) return;
+      if (qty < CANNIBAL_BULK_QTY_THRESHOLD) return;
+      rows.push({ month: m, store: row['매장'] || '-', name, qty, amt: qty * (PRICE_MAP[name] || 0) });
+    });
+  });
+  rows.sort((a, b) => b.qty - a.qty);
+  return rows;
+}
+function renderCannibalBulkRowsTable() {
+  const titleEl = document.getElementById('cannibalBulkRowsTitle');
+  const tableEl = document.getElementById('cannibalBulkRowsTable');
+  if (!titleEl || !tableEl) return;
+  const rows = collectCannibalBulkRows();
+  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+  const totalAmt = rows.reduce((s, r) => s + r.amt, 0);
+  const scopeLabel = cannibalManagerFilter === 'all' ? '담당자 전체' : cannibalManagerFilter;
+  titleEl.textContent = `🔍 신메뉴 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준) — ${rows.length}건 / 합계 ${totalQty.toLocaleString()}개 / ${totalAmt.toLocaleString()}원${cannibalExcludeBulk ? ' · 현재 집계에서 제외 중' : ' · 체크박스를 켜면 이 목록이 집계에서 빠집니다'}`;
+  if (!rows.length) {
+    tableEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">해당 조건의 판매 내역이 없습니다.</div>`;
+    return;
+  }
+  tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px;">
+    <thead><tr>
+      <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">월</th>
+      <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">매장</th>
+      <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">상품명</th>
+      <th style="text-align:right;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">수량</th>
+      <th style="text-align:right;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">금액</th>
+    </tr></thead><tbody>
+    ${rows.map(r => `<tr>
+      <td style="padding:5px 8px;color:#c8dff0;">${r.month}월</td>
+      <td style="padding:5px 8px;color:#c8dff0;" class="store-name">${r.store}</td>
+      <td style="padding:5px 8px;color:#e0f0ff;">${r.name}</td>
+      <td style="text-align:right;padding:5px 8px;color:#fb923c;font-weight:700;">${r.qty.toLocaleString()}개</td>
+      <td style="text-align:right;padding:5px 8px;color:#c8dff0;">${Math.round(r.amt).toLocaleString()}원</td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
 function cannibalValue(name, qty) {
   return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
 }
@@ -8922,6 +8979,7 @@ function cannibalRefreshAll() {
   renderCannibalPeriodTable();
   renderCannibalNewMenuBreakdownChart();
   renderCannibalManagerStoreList();
+  renderCannibalBulkRowsTable();
 }
 // 담당자 필터 선택 시 해당 담당자가 관리하는 매장 목록을 클릭 가능한 칩 형태로 표시.
 // 검색창으로 목록을 좁힐 수 있고, 칩을 클릭하면 해당 매장(들)만 선택되어 데이터에 즉시 반영됨(중복 선택 가능).
