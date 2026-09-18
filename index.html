@@ -1423,6 +1423,10 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
               <select id="cannibalManagerSel" onchange="onCannibalManagerChange()" style="font-size:11px;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;">
                 <option value="all">담당자 전체</option>
               </select>
+              <label title="한 매장이 한 달 동안 해당 신메뉴를 10개 이상 판매한 건은 대량/시범 판매로 간주해 집계에서 제외합니다." style="display:flex;align-items:center;gap:5px;font-size:11px;color:#c8dff0;cursor:pointer;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;border-radius:6px;">
+                <input type="checkbox" id="cannibalExcludeBulkChk" onchange="onCannibalExcludeBulkChange(this.checked)" style="cursor:pointer;">
+                신메뉴 10개↑ 판매 제외
+              </label>
               <div id="cannibalMetricToggle" style="display:flex;gap:4px;"></div>
             </div>
           </div>
@@ -8851,6 +8855,21 @@ let cannibalProduct = '신메뉴';
 let cannibalMetric = 'qty'; // 'qty' | 'amt'
 let cannibalManagerFilter = 'all'; // '全' 또는 특정 담당자명
 let cannibalSelectedStores = new Set(); // 담당자 선택 후, 그중 특정 매장(들)만 추가로 골라낸 경우(비어있으면 해당 담당자 전체)
+// "신메뉴 10개↑ 판매 제외" 체크박스: 한 매장이 한 달 동안 특정 신메뉴를 이 수량 이상 판매한 건은
+// 대량/시범 판매(정상적인 개별 고객 판매가 아닐 가능성)로 보고 집계에서 제외한다.
+// (일별 데이터가 없어도, 현재 월별 데이터가 이미 매장×상품명×월 단위 수량이라 이 판단이 가능함)
+let cannibalExcludeBulk = false;
+const CANNIBAL_BULK_QTY_THRESHOLD = 10;
+function onCannibalExcludeBulkChange(checked) {
+  cannibalExcludeBulk = checked;
+  cannibalRefreshAll();
+}
+// 신메뉴 카테고리로 집계된 한 줄(매장×상품명×월)이 대량/시범 판매 제외 대상인지 판단.
+// cannibalMatchCategories()는 신메뉴 키워드가 포함된 상품명(콤보 포함)을 항상 신메뉴 하나로만 귀속시키므로
+// matched에 NEW_MENU_LABEL이 있으면 그 줄은 순수하게 신메뉴 수량으로 취급된다.
+function cannibalShouldExcludeBulkNewMenu(matched, qty) {
+  return cannibalExcludeBulk && matched.includes(NEW_MENU_LABEL) && qty >= CANNIBAL_BULK_QTY_THRESHOLD;
+}
 function cannibalValue(name, qty) {
   return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
 }
@@ -8979,6 +8998,7 @@ function computeCannibalTotals() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
+      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
       const share = cannibalValue(name, qty) / matched.length;
       matched.forEach(c => totals[c] += share);
     });
@@ -9033,6 +9053,7 @@ function computeCannibalMonthlyPercents() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
+      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
       const share = cannibalValue(name, qty) / matched.length;
       matched.forEach(c => totals[c] += share);
     });
@@ -9077,6 +9098,7 @@ function computeCannibalCumulativeTotals() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
+      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
       const share = cannibalValue(name, qty) / matched.length;
       matched.forEach(c => running[c] += share);
     });
@@ -9568,6 +9590,7 @@ function computeNewMenuSubMonthly() {
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
       // "쑥&앙버터 호두과자"처럼 콤보 상품명도 신메뉴 3종 세부 비교에서는 해당 신메뉴 쪽으로 전량 귀속
+      if (cannibalExcludeBulk && qty >= CANNIBAL_BULK_QTY_THRESHOLD) return;
       subs.forEach(s => {
         if (NEW_MENU_SUB_KEYWORDS[s].some(kw => name.includes(kw))) values[s] += cannibalValue(name, qty);
       });
