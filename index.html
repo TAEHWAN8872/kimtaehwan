@@ -1423,9 +1423,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
               <select id="cannibalManagerSel" onchange="onCannibalManagerChange()" style="font-size:11px;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;color:#c8dff0;border-radius:6px;">
                 <option value="all">담당자 전체</option>
               </select>
-              <label title="한 매장이 한 달 동안 해당 신메뉴를 10개 이상 판매한 건은 대량/시범 판매로 간주해 집계에서 제외합니다." style="display:flex;align-items:center;gap:5px;font-size:11px;color:#c8dff0;cursor:pointer;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;border-radius:6px;">
+              <label title="한 매장이 '하루' 동안 해당 신메뉴를 10개 이상 판매한 건은 예약/단체주문성 매출로 보고 집계에서 제외합니다. (실제 일별 판매 데이터 파일을 새로 불러오므로 처음 켤 때는 시간이 걸릴 수 있어요)" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#c8dff0;cursor:pointer;padding:5px 8px;background:#132537;border:0.5px solid #1e3347;border-radius:6px;">
                 <input type="checkbox" id="cannibalExcludeBulkChk" onchange="onCannibalExcludeBulkChange(this.checked)" style="cursor:pointer;">
-                신메뉴 10개↑ 판매 제외
+                신메뉴 하루 10개↑ 판매 제외
               </label>
               <div id="cannibalMetricToggle" style="display:flex;gap:4px;"></div>
             </div>
@@ -7145,6 +7145,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.__livePrRaw = raw;
     return raw;
   }
+  // 7번 탭(카니발리즘 분석)의 "신메뉴 10개↑ 판매 제외" 기능이 같은 일별 원본 데이터를
+  // 재사용할 수 있도록 전역에 노출(이 IIFE 밖의 코드에서는 원래 접근 불가능함).
+  window.fetchProductDaily_ = fetchProductDaily_;
 
   // ── 상품분류 매핑 (scripts/product-category.js가 REQ_CODE 2로 수집해서 저장) ──
   // { 상품명: POS 실제 분류명(CMDTG_NM) } 형태. 있으면 이걸 우선 쓰고,
@@ -8860,75 +8863,117 @@ let cannibalProduct = '신메뉴';
 let cannibalMetric = 'qty'; // 'qty' | 'amt'
 let cannibalManagerFilter = 'all'; // '全' 또는 특정 담당자명
 let cannibalSelectedStores = new Set(); // 담당자 선택 후, 그중 특정 매장(들)만 추가로 골라낸 경우(비어있으면 해당 담당자 전체)
-// "신메뉴 10개↑ 판매 제외" 체크박스: 한 매장이 한 달 동안 특정 신메뉴를 이 수량 이상 판매한 건은
-// 대량/시범 판매(정상적인 개별 고객 판매가 아닐 가능성)로 보고 집계에서 제외한다.
-// (일별 데이터가 없어도, 현재 월별 데이터가 이미 매장×상품명×월 단위 수량이라 이 판단이 가능함)
+// "신메뉴 10개↑ 판매 제외" 체크박스: 한 매장이 "하루" 동안 특정 신메뉴 상품을 이 수량 이상 판매한 건은
+// 낱개 소매 판매가 아니라 예약/단체 주문성 매출로 보고 집계에서 제외한다.
+// 실제 판단은 data/product-daily.json(매장×날짜×상품별 실제 일별 수량)을 기준으로 한다 —
+// menu-01~08.json은 월 합계라 "하루에 몰린 판매"인지 구분이 안 되기 때문.
 let cannibalExcludeBulk = false;
 const CANNIBAL_BULK_QTY_THRESHOLD = 10;
+// { "매장||상품명||YYYYMM": 그 달에 하루 10개↑로 팔린 날들의 수량 합 } — 월별 합계에서 뺄 양
+window.__cannibalDailyBulkMap = null;
+// 진단용 표에 그대로 뿌릴 원본 일별 내역(매장×날짜×상품×수량)
+window.__cannibalDailyBulkRows = null;
+window.__cannibalDailyBulkPromise = null;
+async function ensureCannibalDailyBulkData() {
+  if (window.__cannibalDailyBulkMap) return window.__cannibalDailyBulkMap;
+  if (window.__cannibalDailyBulkPromise) return window.__cannibalDailyBulkPromise;
+  window.__cannibalDailyBulkPromise = (async () => {
+    const raw = await window.fetchProductDaily_();
+    const map = {};
+    const rowsList = [];
+    Object.values(raw.STORES || {}).forEach(s => {
+      const storeName = s.name;
+      (s.rows || []).forEach(r => {
+        const date = r[0], product = r[1], qty = r[2], amt = r[3];
+        if (qty < CANNIBAL_BULK_QTY_THRESHOLD) return;
+        if (!NEW_MENU_KEYWORDS.some(k => product.includes(k))) return;
+        const ym = date.slice(0, 6); // 'YYYYMM'
+        const key = storeName + '||' + product + '||' + ym;
+        map[key] = (map[key] || 0) + qty;
+        rowsList.push({ store: storeName, date, product, qty, amt });
+      });
+    });
+    rowsList.sort((a, b) => b.qty - a.qty);
+    window.__cannibalDailyBulkMap = map;
+    window.__cannibalDailyBulkRows = rowsList;
+    return map;
+  })().catch(err => {
+    window.__cannibalDailyBulkPromise = null; // 실패 시 다음 시도에서 다시 불러오도록
+    throw err;
+  });
+  return window.__cannibalDailyBulkPromise;
+}
 function onCannibalExcludeBulkChange(checked) {
   cannibalExcludeBulk = checked;
-  cannibalRefreshAll();
-}
-// 신메뉴 카테고리로 집계된 한 줄(매장×상품명×월)이 대량/시범 판매 제외 대상인지 판단.
-// cannibalMatchCategories()는 신메뉴 키워드가 포함된 상품명(콤보 포함)을 항상 신메뉴 하나로만 귀속시키므로
-// matched에 NEW_MENU_LABEL이 있으면 그 줄은 순수하게 신메뉴 수량으로 취급된다.
-function cannibalShouldExcludeBulkNewMenu(matched, qty) {
-  return cannibalExcludeBulk && matched.includes(NEW_MENU_LABEL) && qty >= CANNIBAL_BULK_QTY_THRESHOLD;
-}
-// 현재 담당자/매장 필터 기준으로, "신메뉴 한 매장-한 달 판매량이 10개 이상"인 원본 데이터 줄을
-// 그대로 모아서 보여준다. 체크박스를 켜면 실제로 이 목록이 집계에서 빠지므로,
-// 켜기 전에 "정말 대량/시범 판매가 맞는지" 눈으로 먼저 확인할 수 있게 하기 위한 진단용 표.
-function collectCannibalBulkRows() {
-  const months = [1, 2, 3, 4, 5, 6, 7, 8];
-  const rows = [];
-  months.forEach(m => {
-    const data = MENU_DATA_BY_MONTH[m] || [];
-    data.forEach(row => {
-      if (!cannibalRowMatchesManager(row)) return;
-      const name = row['상품명'] || '';
-      const qty = row['수량'] || 0;
-      if (qty <= 0) return;
-      const matched = cannibalMatchCategories(name);
-      if (!matched.includes(NEW_MENU_LABEL)) return;
-      if (qty < CANNIBAL_BULK_QTY_THRESHOLD) return;
-      rows.push({ month: m, store: row['매장'] || '-', name, qty, amt: qty * (PRICE_MAP[name] || 0) });
+  if (checked && !window.__cannibalDailyBulkMap) {
+    const titleEl = document.getElementById('cannibalBulkRowsTitle');
+    if (titleEl) titleEl.textContent = '⏳ 일별 판매 데이터(product-daily.json)를 불러오는 중입니다... (용량이 커서 시간이 좀 걸려요)';
+    ensureCannibalDailyBulkData().then(() => {
+      cannibalRefreshAll();
+    }).catch(err => {
+      if (titleEl) titleEl.textContent = '❌ 일별 데이터를 불러오지 못했습니다: ' + err.message;
     });
-  });
-  rows.sort((a, b) => b.qty - a.qty);
-  return rows;
+  } else {
+    cannibalRefreshAll();
+  }
+}
+// 26년 1~8월(m=1~8) 메뉴 데이터의 월 번호를 일별 데이터 키(YYYYMM)로 변환.
+// (7번 탭이 다루는 월별 메뉴 데이터는 전부 26년 데이터라 이 규칙이 고정으로 성립함 — cannibalRowMatchesManager 주석 참고)
+function cannibalMonthToYm(m) {
+  return '2026' + String(m).padStart(2, '0');
+}
+// 특정 매장×상품명×월(m)에서, 하루 10개↑로 팔려서 제외해야 할 수량을 조회.
+// 일별 데이터가 아직 안 불러와졌으면(체크박스는 켰지만 로딩 중/실패) 0을 반환 — 로딩 완료 후 자동 재계산됨.
+function cannibalDailyBulkExcludedQty(storeName, productName, m) {
+  if (!cannibalExcludeBulk || !window.__cannibalDailyBulkMap) return 0;
+  const key = storeName + '||' + productName + '||' + cannibalMonthToYm(m);
+  return window.__cannibalDailyBulkMap[key] || 0;
+}
+function cannibalValue(name, qty) {
+  return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
+}
+// 현재 담당자/매장 필터 기준으로, "신메뉴를 하루에 10개 이상 판" 실제 일별 내역을 그대로 보여준다.
+// 체크박스를 켜면 이 목록의 수량만큼이 월별 집계에서 빠지므로, 켜기 전에 눈으로 먼저 확인할 수 있게 하기 위한 진단용 표.
+function collectCannibalBulkRows() {
+  if (!window.__cannibalDailyBulkRows) return null; // 아직 로딩 전(=null)과 로딩 후 0건([])을 구분
+  return window.__cannibalDailyBulkRows.filter(r => cannibalRowMatchesManager({ '매장': r.store }));
 }
 function renderCannibalBulkRowsTable() {
   const titleEl = document.getElementById('cannibalBulkRowsTitle');
   const tableEl = document.getElementById('cannibalBulkRowsTable');
   if (!titleEl || !tableEl) return;
+  // 로딩 중/실패 메시지가 떠 있는 도중에는 덮어쓰지 않는다(onCannibalExcludeBulkChange가 직접 관리).
+  if (cannibalExcludeBulk && !window.__cannibalDailyBulkMap && window.__cannibalDailyBulkPromise) return;
   const rows = collectCannibalBulkRows();
+  const scopeLabel = cannibalManagerFilter === 'all' ? '담당자 전체' : cannibalManagerFilter;
+  if (rows === null) {
+    titleEl.textContent = `🔍 신메뉴 하루 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준)`;
+    tableEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">체크박스를 켜면(일별 데이터를 한 번 불러온 뒤) 여기에 실제 일별 대량 판매 내역이 표시됩니다.</div>`;
+    return;
+  }
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
   const totalAmt = rows.reduce((s, r) => s + r.amt, 0);
-  const scopeLabel = cannibalManagerFilter === 'all' ? '담당자 전체' : cannibalManagerFilter;
-  titleEl.textContent = `🔍 신메뉴 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준) — ${rows.length}건 / 합계 ${totalQty.toLocaleString()}개 / ${totalAmt.toLocaleString()}원${cannibalExcludeBulk ? ' · 현재 집계에서 제외 중' : ' · 체크박스를 켜면 이 목록이 집계에서 빠집니다'}`;
+  titleEl.textContent = `🔍 신메뉴 하루 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준) — ${rows.length}건 / 합계 ${totalQty.toLocaleString()}개 / ${totalAmt.toLocaleString()}원${cannibalExcludeBulk ? ' · 현재 집계에서 제외 중' : ' · 체크박스를 켜면 이 목록이 집계에서 빠집니다'}`;
   if (!rows.length) {
     tableEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">해당 조건의 판매 내역이 없습니다.</div>`;
     return;
   }
   tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px;">
     <thead><tr>
-      <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">월</th>
+      <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">날짜</th>
       <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">매장</th>
       <th style="text-align:left;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">상품명</th>
       <th style="text-align:right;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">수량</th>
       <th style="text-align:right;padding:5px 8px;color:#6b8fa8;font-weight:600;border-bottom:1px solid #1e3347;">금액</th>
     </tr></thead><tbody>
     ${rows.map(r => `<tr>
-      <td style="padding:5px 8px;color:#c8dff0;">${r.month}월</td>
+      <td style="padding:5px 8px;color:#c8dff0;">${r.date.slice(0,4)}.${r.date.slice(4,6)}.${r.date.slice(6,8)}</td>
       <td style="padding:5px 8px;color:#c8dff0;" class="store-name">${r.store}</td>
-      <td style="padding:5px 8px;color:#e0f0ff;">${r.name}</td>
+      <td style="padding:5px 8px;color:#e0f0ff;">${r.product}</td>
       <td style="text-align:right;padding:5px 8px;color:#fb923c;font-weight:700;">${r.qty.toLocaleString()}개</td>
       <td style="text-align:right;padding:5px 8px;color:#c8dff0;">${Math.round(r.amt).toLocaleString()}원</td>
     </tr>`).join('')}
     </tbody></table>`;
-}
-function cannibalValue(name, qty) {
-  return cannibalMetric === 'amt' ? qty * (PRICE_MAP[name] || 0) : qty;
 }
 // 해당 row(매장 단위 판매 데이터)가 현재 선택된 담당자/매장 필터에 해당하는지 확인.
 // 26년 1~8월 데이터는 매장(row['매장']) 기준이라 필터가 그대로 적용되지만,
@@ -9056,8 +9101,12 @@ function computeCannibalTotals() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
-      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
-      const share = cannibalValue(name, qty) / matched.length;
+      let effQty = qty;
+      if (matched.includes(NEW_MENU_LABEL)) {
+        effQty = Math.max(0, qty - cannibalDailyBulkExcludedQty(row['매장'], name, m));
+      }
+      if (effQty <= 0) return;
+      const share = cannibalValue(name, effQty) / matched.length;
       matched.forEach(c => totals[c] += share);
     });
   });
@@ -9111,8 +9160,12 @@ function computeCannibalMonthlyPercents() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
-      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
-      const share = cannibalValue(name, qty) / matched.length;
+      let effQty = qty;
+      if (matched.includes(NEW_MENU_LABEL)) {
+        effQty = Math.max(0, qty - cannibalDailyBulkExcludedQty(row['매장'], name, m));
+      }
+      if (effQty <= 0) return;
+      const share = cannibalValue(name, effQty) / matched.length;
       matched.forEach(c => totals[c] += share);
     });
     return totals;
@@ -9156,8 +9209,12 @@ function computeCannibalCumulativeTotals() {
       if (qty <= 0) return;
       const matched = cannibalMatchCategories(name);
       if (!matched.length) return;
-      if (cannibalShouldExcludeBulkNewMenu(matched, qty)) return;
-      const share = cannibalValue(name, qty) / matched.length;
+      let effQty = qty;
+      if (matched.includes(NEW_MENU_LABEL)) {
+        effQty = Math.max(0, qty - cannibalDailyBulkExcludedQty(row['매장'], name, m));
+      }
+      if (effQty <= 0) return;
+      const share = cannibalValue(name, effQty) / matched.length;
       matched.forEach(c => running[c] += share);
     });
     return { month: m, label: `${m}월`, hasData: !!MENU_DATA_BY_MONTH[m], cumulative: { ...running } };
@@ -9648,9 +9705,11 @@ function computeNewMenuSubMonthly() {
       const qty = row['수량'] || 0;
       if (qty <= 0) return;
       // "쑥&앙버터 호두과자"처럼 콤보 상품명도 신메뉴 3종 세부 비교에서는 해당 신메뉴 쪽으로 전량 귀속
-      if (cannibalExcludeBulk && qty >= CANNIBAL_BULK_QTY_THRESHOLD) return;
+      const excluded = cannibalDailyBulkExcludedQty(row['매장'], name, m);
+      const effQty = Math.max(0, qty - excluded);
+      if (effQty <= 0) return;
       subs.forEach(s => {
-        if (NEW_MENU_SUB_KEYWORDS[s].some(kw => name.includes(kw))) values[s] += cannibalValue(name, qty);
+        if (NEW_MENU_SUB_KEYWORDS[s].some(kw => name.includes(kw))) values[s] += cannibalValue(name, effQty);
       });
     });
     return { month: m, label: `${m}월`, hasData: !!MENU_DATA_BY_MONTH[m], values };
