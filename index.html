@@ -1443,8 +1443,11 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           </div>
 
           <div id="cannibalBulkRowsBox" style="margin-bottom:16px;padding:10px 12px;background:#0d1b2a;border:0.5px solid #3a2a1e;border-radius:8px;">
-            <div id="cannibalBulkRowsTitle" style="font-size:11.5px;color:#fb923c;font-weight:700;margin-bottom:6px;"></div>
-            <div id="cannibalBulkRowsTable" style="overflow-x:auto;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <div id="cannibalBulkRowsTitle" style="font-size:11.5px;color:#fb923c;font-weight:700;flex:1;"></div>
+              <button id="cannibalBulkRowsToggleBtn" onclick="toggleCannibalBulkRowsExpanded()" style="font-size:10.5px;padding:4px 10px;background:#1a3a5c;border:0.5px solid #2a5a8a;color:#7eb8e8;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0;"></button>
+            </div>
+            <div id="cannibalBulkRowsTable" style="overflow-x:auto;margin-top:8px;"></div>
           </div>
 
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
@@ -8938,17 +8941,28 @@ function collectCannibalBulkRows() {
   if (!window.__cannibalDailyBulkRows) return null; // 아직 로딩 전(=null)과 로딩 후 0건([])을 구분
   return window.__cannibalDailyBulkRows.filter(r => cannibalRowMatchesManager({ '매장': r.store }));
 }
+// 리스트가 매장이 많을 때 너무 길어질 수 있어서 기본은 접어두고, 버튼으로 펼쳐볼 수 있게 함.
+let cannibalBulkRowsExpanded = false;
+function toggleCannibalBulkRowsExpanded() {
+  cannibalBulkRowsExpanded = !cannibalBulkRowsExpanded;
+  renderCannibalBulkRowsTable();
+}
 function renderCannibalBulkRowsTable() {
   const titleEl = document.getElementById('cannibalBulkRowsTitle');
   const tableEl = document.getElementById('cannibalBulkRowsTable');
+  const toggleBtn = document.getElementById('cannibalBulkRowsToggleBtn');
   if (!titleEl || !tableEl) return;
   // 로딩 중/실패 메시지가 떠 있는 도중에는 덮어쓰지 않는다(onCannibalExcludeBulkChange가 직접 관리).
-  if (cannibalExcludeBulk && !window.__cannibalDailyBulkMap && window.__cannibalDailyBulkPromise) return;
+  if (cannibalExcludeBulk && !window.__cannibalDailyBulkMap && window.__cannibalDailyBulkPromise) {
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    return;
+  }
   const rows = collectCannibalBulkRows();
   const scopeLabel = cannibalManagerFilter === 'all' ? '담당자 전체' : cannibalManagerFilter;
   if (rows === null) {
     titleEl.textContent = `🔍 신메뉴 하루 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준)`;
     tableEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">체크박스를 켜면(일별 데이터를 한 번 불러온 뒤) 여기에 실제 일별 대량 판매 내역이 표시됩니다.</div>`;
+    if (toggleBtn) toggleBtn.style.display = 'none';
     return;
   }
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
@@ -8956,6 +8970,15 @@ function renderCannibalBulkRowsTable() {
   titleEl.textContent = `🔍 신메뉴 하루 ${CANNIBAL_BULK_QTY_THRESHOLD}개↑ 판매 내역 (${scopeLabel} 기준) — ${rows.length}건 / 합계 ${totalQty.toLocaleString()}개 / ${totalAmt.toLocaleString()}원${cannibalExcludeBulk ? ' · 현재 집계에서 제외 중' : ' · 체크박스를 켜면 이 목록이 집계에서 빠집니다'}`;
   if (!rows.length) {
     tableEl.innerHTML = `<div style="font-size:11px;color:#6b8fa8;">해당 조건의 판매 내역이 없습니다.</div>`;
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    return;
+  }
+  if (toggleBtn) {
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = cannibalBulkRowsExpanded ? `▲ 접기` : `▼ 목록 펼치기 (${rows.length}건)`;
+  }
+  if (!cannibalBulkRowsExpanded) {
+    tableEl.innerHTML = '';
     return;
   }
   tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px;">
