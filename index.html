@@ -8577,9 +8577,18 @@ function menuMonthsLoaded() {
   const ks = Object.keys(MENU_DATA_BY_MONTH).map(Number).filter(m => m >= 1 && m <= 12).sort((a, b) => a - b);
   return ks.length ? ks : AVAILABLE_MENU_MONTHS.slice();
 }
+// 메뉴 파일은 GitHub Pages 재배포를 기다리지 않도록 raw.githubusercontent.com(저장소 최신본)에서 먼저 읽고,
+// 실패하면 사이트 안의 data/ 경로로 되돌아갑니다. (상품별 매출 PRODUCT_DATA_URL과 같은 방식)
+const MENU_RAW_BASE = 'https://raw.githubusercontent.com/TAEHWAN8872/bokhodu-dashboard/main/data/';
+function fetchMenuFile(name) {
+  const bucket = Math.floor(Date.now() / 300000);
+  return fetch(MENU_RAW_BASE + name + '?_=' + bucket)
+    .then(r => { if (!r.ok) throw new Error('raw fail'); return r; })
+    .catch(() => fetch('data/' + name));
+}
 function ensureMenuDataLoaded() {
   if (__menuDataPromise) return __menuDataPromise;
-  const indexPromise = fetch('data/menu-index.json?_=' + Math.floor(Date.now() / 600000))
+  const indexPromise = fetchMenuFile('menu-index.json')
     .then(r => { if (!r.ok) throw new Error('no index'); return r.json(); })
     .then(idx => {
       if (idx && Array.isArray(idx.months) && idx.months.length) {
@@ -8590,10 +8599,10 @@ function ensureMenuDataLoaded() {
   __menuDataPromise = indexPromise.then(() => {
     const files = {};
     AVAILABLE_MENU_MONTHS.forEach(m => {
-      files[m] = `data/menu-${String(m).padStart(2, '0')}.json`;
+      files[m] = `menu-${String(m).padStart(2, '0')}.json`;
     });
     return Promise.all(Object.entries(files).map(([m, url]) =>
-      fetch(url).then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+      fetchMenuFile(url).then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
         .then(data => { MENU_DATA_BY_MONTH[m] = data; })
         .catch(() => { /* 아직 해당 월 파일이 없으면 조용히 건너뜀 (정상 동작) */ })
     ));
