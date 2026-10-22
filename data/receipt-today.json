@@ -1,1 +1,1 @@
-{"DATE":"20261023","ORDERS":[],"updatedAt":"2026-10-22T20:16:27.698Z","lastRunFailedCount":0}
+{"DATE":"20261023","ORDERS":[{"STR_NM":"공덕점","SA_NO":101,"SA_DT":"2026-10-23 05:44:49","SA_DEL_MK":"L","SA_GET_AMT":4000,"SA_CASH_AMT":0,"SA_CARD_AMT":4000,"SA_DISCOUNT":0,"ITEMS":[{"CMDT_NM":"팥 간식용 11개","SC_QTY":1,"SC_AMT_TTL":4000,"SC_FORM":"O","OPTION_GBN":"N"}]}],"updatedAt":"2026-10-22T21:16:34.700Z","lastRunFailedCount":0}
