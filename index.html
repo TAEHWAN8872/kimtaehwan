@@ -927,6 +927,8 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           <option value="rate_asc">참여율 낮은순</option>
           <option value="rate_desc">참여율 높은순</option>
           <option value="name">점포명 순</option>
+          <option value="tenure_desc">개월수 높은순</option>
+          <option value="tenure_asc">개월수 낮은순</option>
         </select>
       </div>
       <div style="font-size:10px;color:#4a5f75;margin-bottom:10px;">행을 클릭하면 월별 캠페인 상세 참여내역을 볼 수 있어요. 위 지역 칩을 클릭하면 해당 지역만 볼 수 있어요.</div>
@@ -4884,6 +4886,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const sortFn = (a,b)=>{
       if(sortVal==='rate_asc') return (a.r.rate===null?101:a.r.rate) - (b.r.rate===null?101:b.r.rate);
       if(sortVal==='rate_desc') return (b.r.rate===null?-1:b.r.rate) - (a.r.rate===null?-1:a.r.rate);
+      if(sortVal==='tenure_desc' || sortVal==='tenure_asc'){
+        const ta = mkTenureMonths(a.s[0]), tb = mkTenureMonths(b.s[0]);
+        // 운영기간 자료가 없는 매장은 항상 맨 뒤로
+        if(ta===null && tb===null) return (a.s[0]||'').localeCompare(b.s[0]||'');
+        if(ta===null) return 1;
+        if(tb===null) return -1;
+        if(ta!==tb) return sortVal==='tenure_desc' ? tb-ta : ta-tb;
+        return (a.s[0]||'').localeCompare(b.s[0]||'');
+      }
       return (a.s[0]||'').localeCompare(b.s[0]||'');
     };
     rows.sort(sortFn);
