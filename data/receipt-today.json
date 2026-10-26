@@ -1,1 +1,1 @@
-{"DATE":"20261027","ORDERS":[],"updatedAt":"2026-10-26T20:16:27.502Z","lastRunFailedCount":0}
+{"DATE":"20261027","ORDERS":[{"STR_NM":"경주용황점","SA_NO":1,"SA_DT":"2026-10-27 06:15:13","SA_DEL_MK":"D","SA_GET_AMT":0,"SA_CASH_AMT":0,"SA_CARD_AMT":0,"SA_DISCOUNT":0,"ITEMS":[{"CMDT_NM":"20개입(앙버터)","SC_QTY":10,"SC_AMT_TTL":0,"SC_FORM":"D","OPTION_GBN":"N"}]}],"updatedAt":"2026-10-26T21:16:35.571Z","lastRunFailedCount":0}
