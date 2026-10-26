@@ -4658,14 +4658,41 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     sel.__populated = true;
   }
 
+  // 현재 선택된 검색/매출구간/담당자/운영기간(+지역) 필터를 적용한 매장 행 목록 — 표·KPI·지역칩이 모두 이 결과를 공유함
+  function mkFilteredRows(skipRegion){
+    const el = id => document.getElementById(id);
+    const q = (el('mkSearch') ? el('mkSearch').value : '').trim().toLowerCase();
+    const salesVal = el('mkSalesSel') ? el('mkSalesSel').value : 'all';
+    const managerVal = el('mkManagerSel') ? el('mkManagerSel').value : 'all';
+    const tenureVal = el('mkTenureSel') ? el('mkTenureSel').value : 'all';
+    let rows = MARKETING_DATA_RAW.map((s, idx)=>({s, idx, r: mkStoreRate(s)}));
+    if(!skipRegion && window.__mkRegion !== 'all'){
+      rows = rows.filter(x => (x.s[2]||'미지정') === window.__mkRegion);
+    }
+    if(q){
+      rows = rows.filter(x => (x.s[0]||'').toLowerCase().includes(q) || mkMatchedMonths(x.s, q).length>0);
+    }
+    if(salesVal !== 'all'){
+      rows = rows.filter(x => mkSalesMatchesFilter(salesVal, mkStoreAvgSales(x.s[0])));
+    }
+    if(managerVal !== 'all'){
+      rows = rows.filter(x => mkStoreManager(x.s[0]) === managerVal);
+    }
+    if(tenureVal !== 'all'){
+      rows = rows.filter(x => mkTenureMatches(tenureVal, mkTenureMonths(x.s[0])));
+    }
+    return rows;
+  }
+
   window.renderMarketingKpis = function(){
-    const rates = MARKETING_DATA_RAW.map(s=>mkStoreRate(s).rate).filter(r=>r!==null);
-    const avg = rates.length ? Math.round(rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+    const fr = mkFilteredRows(false);
+    const rates = fr.map(x=>x.r.rate).filter(r=>r!==null);
+    const avg = rates.length ? Math.round(rates.reduce((a,b)=>a+b,0)/rates.length) : null;
     const high = rates.filter(r=>r>=70).length;
     const low = rates.filter(r=>r<40).length;
     const cards = [
-      {label:'전체 매장', val:MARKETING_DATA_RAW.length, color:'#e0f0ff'},
-      {label:'평균 참여율', val:avg+'%', color: mkRateColor(avg)},
+      {label:'전체 매장', val:fr.length, color:'#e0f0ff'},
+      {label:'평균 참여율', val:(avg===null?'-':avg+'%'), color: mkRateColor(avg)},
       {label:'🟢 참여율 70%↑', val:high, color:'#3db87a'},
       {label:'🔴 참여율 40%미만(관리필요)', val:low, color:'#e05555'}
     ];
@@ -4678,12 +4705,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
   function mkRegionStats(){
     const map = {};
-    MARKETING_DATA_RAW.forEach(s=>{
+    mkFilteredRows(true).forEach(x=>{
+      const s = x.s;
       const region = s[2] || '미지정';
       if(!map[region]) map[region] = {region, stores:[], rates:[]};
       map[region].stores.push(s);
-      const rate = mkStoreRate(s).rate;
-      if(rate!==null) map[region].rates.push(rate);
+      if(x.r.rate!==null) map[region].rates.push(x.r.rate);
     });
     return Object.values(map).map(r=>({
       region: r.region,
@@ -4700,7 +4727,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
   window.renderMarketingRegionChips = function(){
     const stats = mkRegionStats();
-    let html = `<div class="mk-chip${window.__mkRegion==='all'?' active':''}" onclick="setMkRegion('all')">전체 <span class="mk-chip-rate">${MARKETING_DATA_RAW.length}개</span></div>`;
+    // 선택해 둔 지역이 현재 필터에선 0개여도 칩이 사라지지 않게 유지(해제할 수 있도록)
+    if(window.__mkRegion!=='all' && !stats.some(r=>r.region===window.__mkRegion)){
+      stats.push({region: window.__mkRegion, count:0, avg:null});
+    }
+    const totalFiltered = mkFilteredRows(true).length;
+    let html = `<div class="mk-chip${window.__mkRegion==='all'?' active':''}" onclick="setMkRegion('all')">전체 <span class="mk-chip-rate">${totalFiltered}개</span></div>`;
     html += stats.map(r=>{
       const c = mkRateColor(r.avg);
       const rateTxt = r.avg===null ? '-' : r.avg+'%';
@@ -4844,22 +4876,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const salesVal = document.getElementById('mkSalesSel') ? document.getElementById('mkSalesSel').value : 'all';
     const managerVal = document.getElementById('mkManagerSel') ? document.getElementById('mkManagerSel').value : 'all';
     const tenureVal = document.getElementById('mkTenureSel') ? document.getElementById('mkTenureSel').value : 'all';
-    let rows = MARKETING_DATA_RAW.map((s, idx)=>({s, idx, r: mkStoreRate(s)}));
-    if(window.__mkRegion !== 'all'){
-      rows = rows.filter(x => (x.s[2]||'미지정') === window.__mkRegion);
-    }
-    if(q){
-      rows = rows.filter(x => (x.s[0]||'').toLowerCase().includes(q) || mkMatchedMonths(x.s, q).length>0);
-    }
-    if(salesVal !== 'all'){
-      rows = rows.filter(x => mkSalesMatchesFilter(salesVal, mkStoreAvgSales(x.s[0])));
-    }
-    if(managerVal !== 'all'){
-      rows = rows.filter(x => mkStoreManager(x.s[0]) === managerVal);
-    }
-    if(tenureVal !== 'all'){
-      rows = rows.filter(x => mkTenureMatches(tenureVal, mkTenureMonths(x.s[0])));
-    }
+    let rows = mkFilteredRows(false);
+    renderMarketingKpis();
+    renderMarketingRegionChips();
     renderMkSalesSummary(salesVal);
     renderMkManagerSummary(managerVal, rows.map(x => x.s));
     const sortFn = (a,b)=>{
