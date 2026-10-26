@@ -484,6 +484,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
 .mk-bar-fill{height:100%;border-radius:5px;transition:width .3s;}
 .mk-rate-txt{font-size:12px;font-weight:700;white-space:nowrap;}
 .mk-month-dot{display:inline-flex;align-items:center;justify-content:center;width:26px;height:20px;border-radius:5px;font-size:10px;font-weight:700;cursor:default;}
+.mk-tenure{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;color:#7eb8e8;background:#1a2f44;border:0.5px solid #2a5a8a;vertical-align:middle;}
 .mk-month-dot.na{background:#1a2534;color:#4a5f75;}
 .mk-row{cursor:pointer;}
 .mk-row.expanded td{background:#152236;}
@@ -910,6 +911,13 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       </select>
       <select class="filter-sel" id="mkManagerSel" onchange="renderMarketingTable()">
         <option value="all">담당자 전체</option>
+      </select>
+      <select class="filter-sel" id="mkTenureSel" onchange="renderMarketingTable()">
+        <option value="all">운영기간 전체</option>
+        <option value="lt1">1년 미만</option>
+        <option value="1to2">1~2년</option>
+        <option value="2to4">2~4년</option>
+        <option value="gte4">4년 이상</option>
       </select>
     </div>
     <div class="card">
@@ -4503,6 +4511,36 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   const MK_MONTHS = ['2월','3월','4월','5월','6월','7월','8월','9월'];
   window.MARKETING_DATA = MARKETING_DATA_RAW;
 
+  // ── 매장 운영기간 (2026-09-30 기준 개월수 → 오늘 날짜 기준으로 자동 환산) ──
+  const MK_TENURE_BASE = {"창원시청점": 11, "서울대입구역점": 10, "파주교하점": 10, "대구청라언덕점": 8, "동작구청점": 8, "삼성중앙역점": 6, "하남시청역점": 6, "순천신대점": 6, "을지로3가점": 6, "포항문덕점": 5, "분당야탑점": 5, "파주운정점": 3, "아산테크노밸리점": 2, "전주삼천점": 1, "진주혁신도시점": 0, "상암점": 0, "서대전점": 0, "오창점": 23, "우정혁신점": 23, "상봉역점": 22, "화성봉담2지구점": 21, "강동구청점": 20, "군산조촌점": 19, "월곡점": 18, "사당역점": 17, "일산동구청점": 16, "구파발역점": 15, "경복궁역점": 13, "여의도점": 12, "서대문역점": 12, "송도스마트스퀘어점": 12, "목동점": 47, "해운대1호점": 47, "공덕점": 47, "전주혁신도시점": 47, "남악점": 47, "세종아름점": 47, "동해이도점": 46, "원주무실점": 46, "광주상무점": 46, "구미봉곡점": 45, "DMC점": 45, "굴포천역점": 45, "대구감삼점": 45, "안산중앙점": 45, "상주점": 44, "수성범어점": 44, "대전둔산점": 44, "풍동점": 43, "아산탕정신도시점": 43, "부산명지점": 42, "여수웅천점": 42, "파주금촌점": 42, "인천가좌점": 42, "김천점": 42, "수원천천점": 41, "광주첨단점": 41, "과천점": 40, "노원하계점": 40, "청주동남지구점": 40, "용호빌리브점": 40, "아산풍기점": 40, "전주에코시티점": 39, "삼각산점": 39, "침산점": 39, "부산화명점": 38, "용인역북점": 37, "검단신도시점": 37, "익산영등점": 37, "광화문점": 37, "영등포시장점": 37, "신용산점": 37, "수지구청역점": 37, "당진점": 36, "청주율량점": 36, "문정점": 36, "대구월성점": 36, "광주진월점": 36, "양산범어점": 36, "미사역점": 36, "상록수역점": 35, "용인동백점": 35, "대구칠곡점": 34, "잠실스타파크점": 34, "안양비산점": 34, "목동파리공원점": 34, "수원시청역점": 34, "동탄호수공원점": 33, "구미옥계점": 32, "분당정자점": 32, "강남역점": 32, "왕십리점": 32, "인천논현점": 31, "울산구영점": 31, "화곡역점": 31, "김해율하점": 31, "오산세교점": 31, "대치점": 30, "경주용황점": 29, "창원중동점": 29, "구로디지털점": 27, "지산범물점": 27, "시흥은계점": 27, "화정점": 26, "대전관평점": 25, "호매실점": 25, "포항이동점": 25, "논산점": 25, "인천송도점": 63, "청라점": 60, "김포구래점": 60, "부평청천점": 59, "다산점": 58, "당하점": 58, "부천중동점": 58, "시흥배곧점": 57, "인천구월점": 57, "김포풍무점": 57, "조치원점": 57, "영종하늘도시점": 56, "세종나성점": 56, "양주옥정점": 56, "광명점": 56, "송파위례점": 56, "은평역촌점": 56, "부천옥길점": 55, "용현SK점": 55, "동탄목동점": 55, "안양평촌점": 54, "군포산본점": 53, "충주점": 53, "광교점": 53, "마곡역점": 53, "연수동춘점": 53, "계산점": 53, "분당서현점": 52, "비전점": 52, "동탄능동점": 52, "서창점": 51, "강동상일점": 51, "수원망포점": 51, "안성공도점": 51, "광주수완점": 50, "강남논현점": 50, "일산킨텍스점": 50, "시흥목감점": 50, "청주터미널점": 50, "경남대점": 49, "포항양덕점": 49, "김포장기점": 49, "홍성내포점": 49, "거제수월점": 48, "의정부민락점": 48, "삼송점": 48};
+  const MK_TENURE_REF = {y:2026, m:8, d:30}; // 기준일 2026-09-30 (month는 0부터)
+  function mkTenureDelta(){
+    const now = new Date();
+    let delta = (now.getFullYear()-MK_TENURE_REF.y)*12 + (now.getMonth()-MK_TENURE_REF.m);
+    const lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    // 기준일(30일) 전이고 말일도 아니면 아직 그 달의 개월수가 안 찼으므로 1 차감
+    if(now.getDate() < MK_TENURE_REF.d && now.getDate() < lastDay) delta -= 1;
+    return Math.max(0, delta);
+  }
+  function mkTenureMonths(name){
+    const b = MK_TENURE_BASE[name];
+    return (b===undefined) ? null : b + mkTenureDelta();
+  }
+  function mkTenureText(mo){
+    if(mo===null) return '';
+    const y = Math.floor(mo/12), m = mo%12;
+    return y>0 ? `${y}년 ${m}개월` : `${m}개월`;
+  }
+  function mkTenureMatches(val, mo){
+    if(val==='all') return true;
+    if(mo===null) return false;
+    if(val==='lt1') return mo<12;
+    if(val==='1to2') return mo>=12 && mo<24;
+    if(val==='2to4') return mo>=24 && mo<48;
+    if(val==='gte4') return mo>=48;
+    return true;
+  }
+
   function mkStoreRate(store){
     let yes=0, no=0;
     MK_MONTHS.forEach(m=>{
@@ -4691,7 +4729,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       : '';
     let html = `<tr class="mk-row${expanded?' expanded':''}" onclick="toggleMkRow(${idx})">
       <td>${i}</td>
-      <td class="rc-name"><span class="mk-store-name-wrap"><span class="mk-expand-ico">▶</span>${s[0]}</span><div style="font-size:9px;color:#4a6070;margin-top:2px;">${subTxt}</div>${campaignBadge}</td>
+      <td class="rc-name"><span class="mk-store-name-wrap"><span class="mk-expand-ico">▶</span>${s[0]}${mkTenureText(mkTenureMonths(s[0]))?`<span class="mk-tenure">${mkTenureText(mkTenureMonths(s[0]))}</span>`:''}</span><div style="font-size:9px;color:#4a6070;margin-top:2px;">${subTxt}</div>${campaignBadge}</td>
       <td>${s[2]||'-'}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -4805,6 +4843,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const groupVal = document.getElementById('mkGroupSel').value;
     const salesVal = document.getElementById('mkSalesSel') ? document.getElementById('mkSalesSel').value : 'all';
     const managerVal = document.getElementById('mkManagerSel') ? document.getElementById('mkManagerSel').value : 'all';
+    const tenureVal = document.getElementById('mkTenureSel') ? document.getElementById('mkTenureSel').value : 'all';
     let rows = MARKETING_DATA_RAW.map((s, idx)=>({s, idx, r: mkStoreRate(s)}));
     if(window.__mkRegion !== 'all'){
       rows = rows.filter(x => (x.s[2]||'미지정') === window.__mkRegion);
@@ -4818,6 +4857,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     if(managerVal !== 'all'){
       rows = rows.filter(x => mkStoreManager(x.s[0]) === managerVal);
     }
+    if(tenureVal !== 'all'){
+      rows = rows.filter(x => mkTenureMatches(tenureVal, mkTenureMonths(x.s[0])));
+    }
     renderMkSalesSummary(salesVal);
     renderMkManagerSummary(managerVal, rows.map(x => x.s));
     const sortFn = (a,b)=>{
@@ -4830,7 +4872,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const regionLabel = window.__mkRegion==='all' ? '' : ` · ${window.__mkRegion}`;
     const salesLabels = {lt1000:'1000만원 미만', '1000to1500':'1000~1500만원', '1500to2000':'1500~2000만원', '2000to3000':'2000~3000만원', '3000to4000':'3000~4000만원', gte4000:'4000만원 이상', nodata:'매출데이터 없음', gte1000:'1000만원 이상', gte2000:'2000만원 이상', gte3000:'3000만원 이상', gte5000:'5000만원 이상'};
     const salesLabel = salesVal==='all' ? '' : ` · 평균매출 ${salesLabels[salesVal]}`;
-    const managerLabel = managerVal==='all' ? '' : ` · ${managerVal}`;
+    const managerLabel = (managerVal==='all' ? '' : ` · ${managerVal}`) + (tenureVal==='all' ? '' : ` · 운영 ${({lt1:'1년 미만','1to2':'1~2년','2to4':'2~4년',gte4:'4년 이상'})[tenureVal]}`);
     document.getElementById('mkTableTitle').textContent =
       q ? `마케팅 캠페인 참여현황${regionLabel}${salesLabel}${managerLabel} — "${q}" 검색결과 (${rows.length}건)` : `마케팅 캠페인 참여현황 (${MK_MONTHS[0]}~${MK_MONTHS[MK_MONTHS.length-1]})${regionLabel}${salesLabel}${managerLabel} — 전체 ${rows.length}개 매장`;
 
