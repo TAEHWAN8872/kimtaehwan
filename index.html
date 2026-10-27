@@ -613,6 +613,20 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div class="live-subtab" id="liveSubTab-hour" onclick="window.switchLiveSubTab('hour')">⏰ 시간대별 매출</div>
       <div class="live-subtab" id="liveSubTab-summary" onclick="window.switchLiveSubTab('summary')">🧮 매출정리</div>
     </div>
+    <!-- 운영기간(개월수) 표시/필터: 6개 서브탭 공통 적용 -->
+    <div class="live-toolbar" id="liveTenureBar" style="margin-top:8px;">
+      <label>운영기간</label>
+      <select id="liveTenureSel" class="live-input" onchange="window.onLiveTenureChange()">
+        <option value="all">전체</option>
+        <option value="lt1">1년 미만</option>
+        <option value="1to2">1~2년</option>
+        <option value="2to4">2~4년</option>
+        <option value="gte4">4년 이상</option>
+      </select>
+      <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-left:6px;">
+        <input type="checkbox" id="liveTenureShowChk" onchange="window.onLiveTenureChange()"> 개월수 표시
+      </label>
+    </div>
 
     <!-- ⚡ 실시간 매출: 오늘 하루 스냅샷, 서브탭 진입 시 자동 조회 -->
     <div id="liveRealtimeSection">
@@ -4543,6 +4557,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     return true;
   }
 
+  window.mkTenureMonths = mkTenureMonths; window.mkTenureText = mkTenureText; window.mkTenureMatches = mkTenureMatches; window.MK_TENURE_BASE = MK_TENURE_BASE;
+
   function mkStoreRate(store){
     let yes=0, no=0;
     MK_MONTHS.forEach(m=>{
@@ -5618,6 +5634,49 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   };
 
   const LIVE_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','박영태 대리','강동우 사원','이현민 사원'];
+  // ── LIVE 매출: 운영기간(개월수) 표시/필터 (모든 서브탭 공통) ──
+  let __liveTenureLookup = null;
+  function liveTenureNorm_(n){ return String(n||'').replace(/^복호두\s*/,'').replace(/\s+/g,'').toLowerCase(); }
+  function liveTenureMonths_(name){
+    if(typeof window.mkTenureMonths !== 'function' || !window.MK_TENURE_BASE) return null;
+    if(!__liveTenureLookup){
+      __liveTenureLookup = {};
+      Object.keys(window.MK_TENURE_BASE).forEach(k => { __liveTenureLookup[liveTenureNorm_(k)] = k; });
+    }
+    const key = __liveTenureLookup[liveTenureNorm_(name)];
+    return key ? window.mkTenureMonths(key) : null;
+  }
+  function liveTenureOk_(name){
+    const sel = document.getElementById('liveTenureSel');
+    const val = sel ? sel.value : 'all';
+    if(val === 'all') return true;
+    return window.mkTenureMatches(val, liveTenureMonths_(name));
+  }
+  function liveTenureTag_(name){
+    const chk = document.getElementById('liveTenureShowChk');
+    if(!chk || !chk.checked) return '';
+    const mo = liveTenureMonths_(name);
+    return mo === null ? '' : ` <span class="mk-tenure">${window.mkTenureText(mo)}</span>`;
+  }
+  window.onLiveTenureChange = function(){
+    const calls = [
+      () => window.__liveRtData && window.renderLiveRealtimeTable(),
+      () => window.__liveRcData && window.renderLiveReceiptTable(),
+      () => window.__livePdData && window.renderLivePeriodTable(),
+      () => {
+        if(!window.__livePrRows) return;
+        const m = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
+        if(m === 'daily') window.renderLivePrDailyTable();
+        else if(m === 'monthly') window.renderLivePrMonthlyTable();
+        else if(m === 'all') window.renderLivePrAllStoresTable();
+        else window.renderLiveProductTable();
+      },
+      () => window.__liveHrData && window.renderLiveHourTable(),
+      () => window.__liveSmData && window.renderLiveSummaryTable()
+    ];
+    calls.forEach(fn => { try{ fn(); }catch(e){ console.warn('live tenure rerender', e); } });
+  };
+
   function livePopulateManagerSel(selId, rows){
     const sel = document.getElementById(selId);
     if(!sel) return;
@@ -5728,6 +5787,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     livePopulateManagerSel(ids.managerSel, rows);
     const managerVal = document.getElementById(ids.managerSel) ? document.getElementById(ids.managerSel).value : 'all';
     if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+    rows = rows.filter(r => liveTenureOk_(r.name));
 
     const q = (document.getElementById(ids.search).value || '').trim();
     if(q) rows = rows.filter(r => (r.name||'').includes(q));
@@ -5792,15 +5852,15 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
       if(r.isError){
         const errColspan = dates.length + (isPeriod ? (1 + yearGroups.length) : 1);
-        return `<tr class="err-row"><td>${r.name}</td>${mgrCell}<td>-</td><td colspan="${errColspan}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+        return `<tr class="err-row"><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}<td>-</td><td colspan="${errColspan}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
       }
       const openDaysCell = `<td style="color:#8fb8dd;">${r.openDays}일</td>`;
       const totalCell = `<td class="grand-total">${r.rowTotal.toLocaleString()}</td>`;
       if(isPeriod){
         const avgCells = yearGroups.map(g => `<td>${(r.avgByYear[g.year]||0).toLocaleString()}</td>`).join('');
-        return `<tr><td>${r.name}</td>${mgrCell}${openDaysCell}${totalCell}${avgCells}${r.cellsHtml}</tr>`;
+        return `<tr><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}${openDaysCell}${totalCell}${avgCells}${r.cellsHtml}</tr>`;
       }
-      return `<tr><td>${r.name}</td>${mgrCell}${openDaysCell}${r.cellsHtml}${totalCell}</tr>`;
+      return `<tr><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}${openDaysCell}${r.cellsHtml}${totalCell}</tr>`;
     }).join('');
 
     const headerCells = dates.map(d => `<th class="${(d.wd === 0 || d.wd === 6) ? 'wknd' : ''}" style="text-align:right;">${d.ymd.slice(4,6)}/${d.ymd.slice(6,8)}(${WD[d.wd]})</th>`).join('');
@@ -6089,6 +6149,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       if(!storeSeen.has(r.code)) storeSeen.set(r.code, { manager });
       if(q && !(r.name || '').includes(q)) return;
       if(managerVal !== 'all' && manager !== managerVal) return;
+      if(!liveTenureOk_(r.name)) return;
 
       let key, label;
       if(mode === 'store'){ key = r.code; label = r.name; }
@@ -6169,7 +6230,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         ? `<td${carryClickable ? ` onclick="window.showLiveHrDetail('${row.key}',24)" style="text-align:right;cursor:pointer;background:#1c1730;" title="클릭하면 이월된 상품을 볼 수 있어요"` : ' style="text-align:right;background:#1c1730;"'}>${cellHtml(row.qty[24], row.amt[24], false)}</td>`
         : '';
       return `<tr>
-          <td style="text-align:center;">${row.label}</td>
+          <td style="text-align:center;">${row.label}${mode === 'store' ? liveTenureTag_(row.label) : ''}</td>
           ${mode === 'store' ? `<td style="text-align:center;">${row.manager}</td>` : ''}
           <td style="text-align:right;font-weight:600;">${row.totAmt.toLocaleString()}<div style="font-size:10px;color:#6b8fa8;">${row.totQty.toLocaleString()}개</div></td>
           ${cells}${carryCellHtml}
@@ -6232,6 +6293,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       if(r.hour !== hour) return;
       if(q && !(r.name || '').includes(q)) return;
       if(managerVal !== 'all' && mgrOf(r.code, r.name) !== managerVal) return;
+      if(!liveTenureOk_(r.name)) return;
       const rk = (mode === 'store') ? r.code : (mode === 'day' ? r.date : r.ym);
       if(String(rk) !== String(key)) return;
       if(!rowLabel){
@@ -6438,6 +6500,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     livePopulateManagerSel('liveSmManagerSel', rows);
     const managerVal = document.getElementById('liveSmManagerSel') ? document.getElementById('liveSmManagerSel').value : 'all';
     if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+    rows = rows.filter(r => liveTenureOk_(r.name));
 
     const q = (document.getElementById('liveSmSearch').value || '').trim();
     if(q) rows = rows.filter(r => (r.name||'').includes(q));
@@ -6489,13 +6552,13 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
       const bodyRows = rows.map(r => {
         if(r.isError){
-          return `<tr class="err-row"><td style="text-align:center;">${r.name}</td>
+          return `<tr class="err-row"><td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
             <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
             <td colspan="${channelLabels.length + 1}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
         }
         const chCells = channelLabels.map(l => `<td>${((r.channels[l] && r.channels[l].amount) || 0).toLocaleString()}</td>`).join('');
         return `<tr>
-          <td style="text-align:center;">${r.name}</td>
+          <td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
           <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
           ${chCells}
           <td class="grand-total">${(r.channelTotal || 0).toLocaleString()}</td>
@@ -6554,12 +6617,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     const bodyRows = rows.map(r => {
       if(r.isError){
-        return `<tr class="err-row"><td style="text-align:center;">${r.name}</td>
+        return `<tr class="err-row"><td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
           <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
           <td colspan="4" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
       }
       return `<tr>
-        <td style="text-align:center;">${r.name}</td>
+        <td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
         <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
         <td>${r.posAmt.toLocaleString()}</td>
         <td>${r.delAmt.toLocaleString()}</td>
@@ -6654,6 +6717,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     livePopulateManagerSel('liveRcManagerSel', orders);
     const managerVal = document.getElementById('liveRcManagerSel') ? document.getElementById('liveRcManagerSel').value : 'all';
     if(managerVal !== 'all') orders = orders.filter(o => o.manager === managerVal);
+    orders = orders.filter(o => liveTenureOk_(o.STR_NM));
 
     const q = (document.getElementById('liveRcSearch').value || '').trim();
     if(q) orders = orders.filter(o => (o.STR_NM||'').includes(q));
@@ -6674,7 +6738,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const hasItems = Array.isArray(o.ITEMS) && o.ITEMS.length > 0;
       return `<tr onclick="window.showLiveRcItemModal(${i})" style="cursor:pointer;" title="클릭하면 품목별 상세를 볼 수 있어요">
           <td style="text-align:center;color:#5c7690;">${i+1}</td>
-          <td style="text-align:center;">${o.STR_NM || '-'}</td>
+          <td style="text-align:center;">${o.STR_NM || '-'}${liveTenureTag_(o.STR_NM)}</td>
           <td style="text-align:center;">${o.manager || '-'}</td>
           <td style="text-align:center;">${time}</td>
           <td>${(o.SA_GET_AMT||0).toLocaleString()}${hasItems ? ' <span style="color:#5c7690;font-size:11px;">🔍</span>' : ''}</td>
@@ -6945,6 +7009,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     livePopulateManagerSel('livePdManagerSel', rows);
     const managerVal = document.getElementById('livePdManagerSel') ? document.getElementById('livePdManagerSel').value : 'all';
     if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+    rows = rows.filter(r => liveTenureOk_(r.name));
 
     const q = (document.getElementById('livePdSearch').value || '').trim();
     if(q) rows = rows.filter(r => (r.name||'').includes(q));
@@ -7003,12 +7068,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
       if(r.isError){
         const errColspan = 3 + colCount * 2;
-        return `<tr class="err-row"><td>${r.name}</td>${mgrCell}<td colspan="${errColspan}" style="text-align:left;">⚠ 기간A·기간B 모두 조회 실패</td></tr>`;
+        return `<tr class="err-row"><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}<td colspan="${errColspan}" style="text-align:left;">⚠ 기간A·기간B 모두 조회 실패</td></tr>`;
       }
       const totalACell = `<td class="grand-total">${r.rowTotalA.toLocaleString()}</td>`;
       const totalBCell = `<td class="grand-total">${r.rowTotalB.toLocaleString()}</td>`;
       const diffCell = `<td style="color:${diffColor_(r.diffPct)};font-weight:600;">${fmtDiff_(r.diffPct)}</td>`;
-      return `<tr><td>${r.name}</td>${mgrCell}${totalACell}${totalBCell}${diffCell}${r.cellsHtml}</tr>`;
+      return `<tr><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}${totalACell}${totalBCell}${diffCell}${r.cellsHtml}</tr>`;
     }).join('');
 
     const avgByOffsetA = totalByOffsetA.map((sum, i) => storeCountByOffsetA[i] > 0 ? Math.round(sum / storeCountByOffsetA[i]) : 0);
@@ -7089,6 +7154,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     livePopulateManagerSel('livePdManagerSel', rows);
     const managerVal = document.getElementById('livePdManagerSel') ? document.getElementById('livePdManagerSel').value : 'all';
     if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+    rows = rows.filter(r => liveTenureOk_(r.name));
 
     const q = (document.getElementById('livePdSearch').value || '').trim();
     if(q) rows = rows.filter(r => (r.name||'').includes(q));
@@ -7147,12 +7213,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
       if(r.isError){
         const errColspan = months.length + 1 + yearGroups.length;
-        return `<tr class="err-row"><td>${r.name}</td>${mgrCell}<td>-</td><td colspan="${errColspan}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+        return `<tr class="err-row"><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}<td>-</td><td colspan="${errColspan}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
       }
       const openDaysCell = `<td style="color:#8fb8dd;">${r.openDays}일</td>`;
       const totalCell = `<td class="grand-total">${r.rowTotal.toLocaleString()}</td>`;
       const avgCells = yearGroups.map(g => `<td>${(r.avgByYear[g.year]||0).toLocaleString()}</td>`).join('');
-      return `<tr><td>${r.name}</td>${mgrCell}${openDaysCell}${totalCell}${avgCells}${r.cellsHtml}</tr>`;
+      return `<tr><td>${r.name}${liveTenureTag_(r.name)}</td>${mgrCell}${openDaysCell}${totalCell}${avgCells}${r.cellsHtml}</tr>`;
     }).join('');
 
     const headerCells = months.map(m => `<th style="text-align:right;">${m.slice(0,4)}년 ${+m.slice(4,6)}월</th>`).join('');
@@ -7744,6 +7810,7 @@ function isLivePrExcluded_(name){
     livePopulateManagerSel('livePrManagerSel', rows);
     const managerVal = document.getElementById('livePrManagerSel') ? document.getElementById('livePrManagerSel').value : 'all';
     if(managerVal !== 'all') rows = rows.filter(r => r.manager === managerVal);
+    rows = rows.filter(r => liveTenureOk_(r.name));
 
     const storeQ = (document.getElementById('livePrStoreSearch').value || '').trim();
     if(storeQ) rows = rows.filter(r => (r.name||'').includes(storeQ));
@@ -7785,7 +7852,7 @@ function isLivePrExcluded_(name){
 
     const bodyRows = rows.map(r => `
       <tr>
-        <td style="text-align:center;">${r.name}</td>
+        <td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
         <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
         <td style="text-align:center;">${r.product}</td>
         <td>${r.qty.toLocaleString()}</td>
@@ -7895,6 +7962,7 @@ function isLivePrExcluded_(name){
 
     const allowedCodes = new Set(storeMetaList
       .filter(s => managerVal === 'all' || s.manager === managerVal)
+      .filter(s => liveTenureOk_(s.name))
       .filter(s => !storeQ || (s.name||'').includes(storeQ))
       .map(s => s.code));
 
@@ -7965,7 +8033,7 @@ function isLivePrExcluded_(name){
 
     const bodyRows = storeRows.map(s => `
       <tr>
-        <td style="text-align:center;">${s.name}</td>
+        <td style="text-align:center;">${s.name}${liveTenureTag_(s.name)}</td>
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
         <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
@@ -8061,6 +8129,7 @@ function isLivePrExcluded_(name){
 
     const allowedCodes = new Set(storeMetaList
       .filter(s => managerVal === 'all' || s.manager === managerVal)
+      .filter(s => liveTenureOk_(s.name))
       .filter(s => !storeQ || (s.name||'').includes(storeQ))
       .map(s => s.code));
 
@@ -8131,7 +8200,7 @@ function isLivePrExcluded_(name){
 
     const bodyRows = storeRows.map(s => `
       <tr>
-        <td style="text-align:center;">${s.name}</td>
+        <td style="text-align:center;">${s.name}${liveTenureTag_(s.name)}</td>
         <td style="text-align:center;color:#8fb8dd;">${s.manager || '-'}</td>
         <td>${livePrQtyBreakdownHtml_(s.totalQty, s.byProduct, checkedList)}</td>
         <td class="grand-total">${s.totalAmount.toLocaleString()}</td>
@@ -8219,6 +8288,7 @@ function isLivePrExcluded_(name){
 
     const allowedCodes = new Set(storeMetaList
       .filter(s => managerVal === 'all' || s.manager === managerVal)
+      .filter(s => liveTenureOk_(s.name))
       .filter(s => !storeQ || (s.name||'').includes(storeQ))
       .map(s => s.code));
 
