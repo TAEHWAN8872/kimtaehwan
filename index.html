@@ -626,6 +626,11 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-left:6px;">
         <input type="checkbox" id="liveTenureShowChk" onchange="window.onLiveTenureChange()"> 개월수 표시
       </label>
+      <select id="liveTenureSortSel" class="live-input" onchange="window.onLiveTenureChange()" title="개월수 기준 정렬 (기본: 각 표의 기존 정렬 유지)">
+        <option value="none">정렬: 기본</option>
+        <option value="desc">개월수 높은순</option>
+        <option value="asc">개월수 낮은순</option>
+      </select>
     </div>
 
     <!-- ⚡ 실시간 매출: 오늘 하루 스냅샷, 서브탭 진입 시 자동 조회 -->
@@ -5652,6 +5657,23 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     if(val === 'all') return true;
     return window.mkTenureMatches(val, liveTenureMonths_(name));
   }
+  // 개월수 정렬(제자리 정렬). '기본'이면 각 표의 기존 정렬을 그대로 둠. 운영기간 자료가 없는 매장은 항상 맨 뒤.
+  function liveTenureSortInPlace_(arr, nameKey){
+    const sel = document.getElementById('liveTenureSortSel');
+    const v = sel ? sel.value : 'none';
+    if(v === 'none' || !Array.isArray(arr)) return arr;
+    const dir = (v === 'desc') ? -1 : 1;
+    const key = nameKey || 'name';
+    const keyed = arr.map((x, i) => ({ x, i, m: liveTenureMonths_(x && x[key]) }));
+    keyed.sort((a, b) => {
+      if(a.m === null && b.m === null) return a.i - b.i;
+      if(a.m === null) return 1;
+      if(b.m === null) return -1;
+      return a.m !== b.m ? dir * (a.m - b.m) : a.i - b.i;
+    });
+    keyed.forEach((k, i) => { arr[i] = k.x; });
+    return arr;
+  }
   function liveTenureTag_(name){
     const chk = document.getElementById('liveTenureShowChk');
     if(!chk || !chk.checked) return '';
@@ -5847,6 +5869,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     // 2단계: 헤더 클릭으로 선택된 컬럼 기준 정렬
     computed.sort((a, b) => sortState.dir * liveSortCompare_(a, b, sortState.key));
+    liveTenureSortInPlace_(computed);
 
     const bodyRows = computed.map(r => {
       const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
@@ -6180,6 +6203,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
     if(mode === 'store') rows.sort((a,b) => b.totAmt - a.totAmt);
     else rows.sort((a,b) => (a.key < b.key ? -1 : 1));
+    if(mode === 'store') liveTenureSortInPlace_(rows, 'label');
 
     const hours = [];
     for(let h = 0; h < 24; h++){
@@ -6527,6 +6551,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         if(sortKey === 'total') return st.dir * ((a.channelTotal||0) - (b.channelTotal||0));
         return st.dir * liveSmSortCompare_(a, b, sortKey);
       });
+      liveTenureSortInPlace_(rows);
 
       let sumTotal = 0, errorCount = 0;
       const sumByChannel = {}; channelLabels.forEach(l => sumByChannel[l] = 0);
@@ -6594,6 +6619,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     // ── 정리보기(기본): 포스 매출 / 배달 매출 / 배달횟수 / 총매출 ──
     rows.sort((a, b) => st.dir * liveSmSortCompare_(a, b, st.key));
+    liveTenureSortInPlace_(rows);
 
     let sumPos = 0, sumDel = 0, sumDelCnt = 0, sumTotal = 0, errorCount = 0;
     rows.forEach(r => {
@@ -6718,6 +6744,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const managerVal = document.getElementById('liveRcManagerSel') ? document.getElementById('liveRcManagerSel').value : 'all';
     if(managerVal !== 'all') orders = orders.filter(o => o.manager === managerVal);
     orders = orders.filter(o => liveTenureOk_(o.STR_NM));
+    liveTenureSortInPlace_(orders, 'STR_NM');
 
     const q = (document.getElementById('liveRcSearch').value || '').trim();
     if(q) orders = orders.filter(o => (o.STR_NM||'').includes(q));
@@ -7060,6 +7087,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     });
 
     computed.sort((a, b) => sortState.dir * liveCompareSortCompare_(a, b, sortState.key));
+    liveTenureSortInPlace_(computed);
 
     const fmtDiff_ = (v) => v === null ? '-' : `${v > 0 ? '+' : ''}${v}%`;
     const diffColor_ = (v) => v === null ? '#5c7690' : (v > 0 ? '#4fd18b' : (v < 0 ? '#e0895c' : '#8fb8dd'));
@@ -7208,6 +7236,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     months.forEach(m => avgByMonthExclZero[m] = storeCountByMonth[m] > 0 ? Math.round(totalByMonth[m] / storeCountByMonth[m]) : 0);
 
     computed.sort((a, b) => sortState.dir * liveSortCompare_(a, b, sortState.key));
+    liveTenureSortInPlace_(computed);
 
     const bodyRows = computed.map(r => {
       const mgrCell = `<td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>`;
@@ -7832,6 +7861,7 @@ function isLivePrExcluded_(name){
 
     const st = window.__liveSortState.product;
     rows.sort((a,b) => st.dir * livePrSortCompare_(a, b, st.key));
+    liveTenureSortInPlace_(rows);
 
     let totalQty = 0, totalAmount = 0;
     rows.forEach(r => { totalQty += r.qty; totalAmount += r.amount; });
@@ -8013,6 +8043,7 @@ function isLivePrExcluded_(name){
       if(st.key === 'qty') return st.dir * (a.totalQty - b.totalQty);
       return st.dir * (a.totalAmount - b.totalAmount);
     });
+    liveTenureSortInPlace_(storeRows);
 
     // 날짜 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌.
     // 상품을 2개 이상 체크했으면, 그날의 상품별 낱개 수량도 위에 함께 보여준다.
@@ -8180,6 +8211,7 @@ function isLivePrExcluded_(name){
       if(st.key === 'qty') return st.dir * (a.totalQty - b.totalQty);
       return st.dir * (a.totalAmount - b.totalAmount);
     });
+    liveTenureSortInPlace_(storeRows);
 
     // 월 하나의 셀: 위(굵게) 수량 · 아래(작게) 금액을 같이 보여줌.
     // 상품을 2개 이상 체크했으면, 그 달의 상품별 낱개 수량도 위에 함께 보여준다.
