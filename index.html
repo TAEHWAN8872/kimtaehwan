@@ -3872,7 +3872,8 @@ const WALNUT_2025_MONTHLY = {
 
 function getWalnutMonthlyQty(){
   const result = {};
-  for(let m=1; m<=7; m++){
+  for(let m=1; m<=12; m++){
+    if(m>7 && !MENU_DATA_BY_MONTH[m]) continue; // 8월 이후는 데이터가 로드된 달만 (월 추가 시 자동 반영)
     const rows = MENU_DATA_BY_MONTH[m] || [];
     result[m] = rows.filter(r => r['상품분류']==='호두과자' && !String(r['상품명']||'').includes('선물세트') && r['상품명']!=='팥 간식용 11개').reduce((s,r)=> s+(r['수량']||0), 0);
   }
@@ -3890,9 +3891,26 @@ const GIFT_2025_MONTHLY = {
   7: 93351
 };
 
+// 25년 월별 수량: 위 상수(1~7월)가 있으면 그 값, 없으면 CANNIBAL_PRELAUNCH_MONTHLY(25년 9~11월 상품별 수량)에서 합산.
+// 둘 다 없는 달(예: 8월)은 null → 차트/표에서 '데이터 없음' 처리. 상수에 `8: 값`을 추가하면 자동으로 사용됨.
+function get2025Qty(kind, m){
+  const c = kind==='gift' ? GIFT_2025_MONTHLY : WALNUT_2025_MONTHLY;
+  if(c[m]) return c[m];
+  const d = (typeof CANNIBAL_PRELAUNCH_MONTHLY!=='undefined') ? CANNIBAL_PRELAUNCH_MONTHLY[m+'월'] : null;
+  if(!d) return null;
+  let sum = 0;
+  Object.keys(d).forEach(name=>{
+    if(name==='팥 간식용 11개') return; // 26년 20개입 집계와 동일하게 제외
+    const isGift = name.startsWith('답례품');
+    if((kind==='gift')===isGift) sum += d[name]||0;
+  });
+  return sum || null;
+}
+
 function getGiftMonthlyQty(){
   const result = {};
-  for(let m=1; m<=7; m++){
+  for(let m=1; m<=12; m++){
+    if(m>7 && !MENU_DATA_BY_MONTH[m]) continue;
     const rows = MENU_DATA_BY_MONTH[m] || [];
     result[m] = rows.filter(r => r['상품분류']==='답례품').reduce((s,r)=> s+(r['수량']||0), 0);
   }
@@ -12180,16 +12198,20 @@ function computeStoreCounts26_25() {
 // getMonthlyFn26: 26년 월별 총 판매수량을 반환하는 함수 (예: getWalnutMonthlyQty)
 function computeStoreAvgSeries(data2025Const, getMonthlyFn26) {
   const monthly26 = getMonthlyFn26();
-  const { storeCount25, storeCount26 } = computeStoreCounts26_25();
-  // 이 비교표는 25년 매장당 평균(data2025Const)과 짝을 이뤄야 하는데, 25년 쪽은
-  // 아직 8월 데이터가 없어(WALNUT_2025_MONTHLY 등이 7월까지만 존재) 8월까지
-  // 넓히면 0으로 채워져 그래프가 어색해진다. 이 비교 차트만 7월까지 유지.
-  const months = [1, 2, 3, 4, 5, 6, 7];
-  const labels = months.map(m => `${m}월`);
+  const kind = (data2025Const === GIFT_2025_MONTHLY) ? 'gift' : 'walnut';
+  // 1~7월은 항상, 8월 이후는 26년 메뉴 데이터가 있는 달만 자동 포함 (10월 파일이 생기면 10월도 자동 추가)
+  const months = [];
+  for (let m = 1; m <= 12; m++) { if (m <= 7 || (monthly26[m] || 0) > 0) months.push(m); }
+  const now = new Date();
+  const curM = now.getFullYear() === 2026 ? now.getMonth() + 1 : -1; // 진행 중인 달
+  const labels = months.map(m => m === curM ? `${m}월(진행중)` : `${m}월`);
+  const inProgress = months.map(m => m === curM);
+  const storeCount25 = months.map(m => Object.values(ALL25).filter(arr => (arr[m - 1] || 0) > 0).length);
+  const storeCount26 = months.map(m => ALL.filter(b => (b.months[m - 1] || 0) > 0).length);
   const avg25 = months.map((m, i) => {
-    const v = data2025Const[m] || 0;
+    const v = get2025Qty(kind, m);
     const s = storeCount25[i];
-    return s ? v / s : 0;
+    return (v && s) ? v / s : null;
   });
   const avg26 = months.map((m, i) => {
     const v = monthly26[m] || 0;
@@ -12200,7 +12222,7 @@ function computeStoreAvgSeries(data2025Const, getMonthlyFn26) {
     const a25 = avg25[i], a26 = avg26[i];
     return a25 ? ((a26 - a25) / a25 * 100) : null;
   });
-  return { labels, avg25, avg26, diffPct, storeCount25, storeCount26 };
+  return { labels, avg25, avg26, diffPct, storeCount25, storeCount26, inProgress };
 }
 
 function renderStoreAvgLineChart(canvasId, series, color26) {
@@ -12290,7 +12312,7 @@ function renderStoreAvgLineChart(canvasId, series, color26) {
     data: {
       labels,
       datasets: [
-        { label: '25년', data: avg25.map(round1), borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+        { label: '25년', data: avg25.map(v => v == null ? null : round1(v)), borderColor: '#f59e0b', backgroundColor: '#f59e0b',
           pointBackgroundColor: '#f59e0b', pointBorderColor: '#0d1b2a', pointBorderWidth: 1.5, pointRadius: 4,
           borderWidth: 2.5, tension: 0.3,
           datalabels: { color: '#fde68a', anchor: 'end',
@@ -12328,18 +12350,19 @@ function renderStoreAvgLineChart(canvasId, series, color26) {
 function renderStoreAvgTable(containerId, series, color26) {
   const el = document.getElementById(containerId);
   if (!el) return;
-  const { labels, avg25, avg26, diffPct, storeCount25, storeCount26 } = series;
+  const { labels, avg25, avg26, diffPct, storeCount25, storeCount26, inProgress } = series;
   const rows = labels.map((lb, i) => {
     const a25 = avg25[i], a26 = avg26[i], p = diffPct[i];
-    const diff = a26 - a25;
+    const has25 = a25 != null;
+    const diff = has25 ? a26 - a25 : 0;
     const diffColor = p == null ? '#9fc1de' : (p >= 0 ? '#4ade80' : '#f87171');
     const diffSign = diff >= 0 ? '+' : '';
     const pctText = p == null ? '-' : `${p >= 0 ? '↑' : '↓'} ${p >= 0 ? '+' : ''}${p.toFixed(1)}%`;
     return `<tr>
       <td style="padding:5px 10px;color:#9fc1de;">${lb}</td>
-      <td style="padding:5px 10px;text-align:right;color:#f59e0b;">${storeCount25[i]}개 매장 · 평균 ${a25.toFixed(1)}개</td>
+      <td style="padding:5px 10px;text-align:right;color:#f59e0b;">${has25 ? `${storeCount25[i]}개 매장 · 평균 ${a25.toFixed(1)}개` : '데이터 없음'}</td>
       <td style="padding:5px 10px;text-align:right;color:${color26};">${storeCount26[i]}개 매장 · 평균 ${a26.toFixed(1)}개</td>
-      <td style="padding:5px 10px;text-align:right;color:${diffColor};">${diffSign}${diff.toFixed(1)}개</td>
+      <td style="padding:5px 10px;text-align:right;color:${diffColor};">${has25 ? `${diffSign}${diff.toFixed(1)}개` : '-'}</td>
       <td style="padding:5px 10px;text-align:right;color:${diffColor};font-weight:700;">${pctText}</td>
     </tr>`;
   }).join('');
@@ -12347,7 +12370,9 @@ function renderStoreAvgTable(containerId, series, color26) {
   const lastIdx = storeCount25.length - 1;
   const totalStore25 = storeCount25[lastIdx] || 0;
   const totalStore26 = storeCount26[lastIdx] || 0;
-  const avgOf = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+  // 전체 평균: 25·26년 값이 모두 있고, 아직 진행 중이 아닌 달만 사용 (월 중간의 부분 데이터가 평균을 끌어내리지 않도록)
+  const useIdx = avg25.map((v, i) => (v != null && !(inProgress && inProgress[i])) ? i : -1).filter(i => i >= 0);
+  const avgOf = arr => useIdx.length ? useIdx.reduce((a, i) => a + arr[i], 0) / useIdx.length : 0;
   const totalAvg25 = avgOf(avg25), totalAvg26 = avgOf(avg26);
   const totalDiff = totalAvg26 - totalAvg25;
   const totalPct = totalAvg25 ? ((totalDiff / totalAvg25) * 100) : null;
@@ -12355,7 +12380,7 @@ function renderStoreAvgTable(containerId, series, color26) {
   const totalPctText = totalPct == null ? '-' : `${totalPct >= 0 ? '↑' : '↓'} ${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%`;
 
   el.innerHTML = `
-    <div class="ks" style="color:#6b8fa8;margin-bottom:6px;">매장당 평균 판매량 (해당 월 총 수량 ÷ 운영 매장수)</div>
+    <div class="ks" style="color:#6b8fa8;margin-bottom:6px;">매장당 평균 판매량 (해당 월 총 수량 ÷ 운영 매장수) · 전체 평균은 진행 중인 달·25년 데이터 없는 달 제외</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead><tr style="border-bottom:1px solid #2a5a8a;">
         <th style="padding:5px 10px;text-align:left;color:#6b8fa8;">월</th>
