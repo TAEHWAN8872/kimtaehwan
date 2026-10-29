@@ -3943,6 +3943,13 @@ function ensureProd25_(){
     return __prod25Result;
   });
 }
+// 26년 매장 수: 내장 매출 데이터(ALL)에 아직 없는 달(예: 매출 갱신 전의 10월)은 그 달 메뉴 데이터에서 수량이 있는 매장 수로 대체
+function menuStoreCount26_(m){
+  const rows = MENU_DATA_BY_MONTH[m] || [];
+  const set = new Set();
+  rows.forEach(r => { if ((r['수량'] || 0) > 0 && r['매장']) set.add(r['매장']); });
+  return set.size;
+}
 function isPartialMonth25_(m){
   const cut = get25ProdCutoff();
   return cut.year === 2026 && m === cut.month && cut.day < new Date(2026, cut.month, 0).getDate();
@@ -12277,7 +12284,10 @@ function computeStoreAvgSeries(data2025Const, getMonthlyFn26) {
   const labels = months.map(m => m === partialM ? `${m}월(~${cut.day}일)` : `${m}월`);
   const inProgress = months.map(m => m === partialM);
   const storeCount25 = months.map(m => Object.values(ALL25).filter(arr => (arr[m - 1] || 0) > 0).length);
-  const storeCount26 = months.map(m => ALL.filter(b => (b.months[m - 1] || 0) > 0).length);
+  const storeCount26 = months.map(m => {
+    const n = ALL.filter(b => (b.months[m - 1] || 0) > 0).length;
+    return n > 0 ? n : menuStoreCount26_(m);
+  });
   const avg25 = months.map((m, i) => {
     const v = get2025Qty(kind, m);
     const s = storeCount25[i];
