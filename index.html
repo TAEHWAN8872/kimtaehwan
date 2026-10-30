@@ -1301,11 +1301,12 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <!-- 분석 뷰 (1월~현재) -->
       <div id="menuAnalysisView" style="display:none;">
         <!-- 분석 세부 탭 (1~11번) -->
+        <div id="maRangeNote" style="font-size:11px;color:#6b8fa8;margin-bottom:10px;"></div>
         <div id="menuAnalysisSubtabs" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;"></div>
 
         <!-- 1번 탭: 매출 및 판매 총 수량 -->
         <div id="maTab-1" class="ma-tab-panel">
-          <div style="font-size:12px;color:#7eb8e8;font-weight:700;margin-bottom:12px;">📊 월별 매출 및 판매 총수량 (1월~현재)</div>
+          <div style="font-size:12px;color:#7eb8e8;font-weight:700;margin-bottom:12px;">📊 월별 매출 및 판매 총수량 (<span class="ma-range">1월~현재</span>)</div>
           <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
             <div style="flex:1;min-width:160px;background:#132537;border:0.5px solid #1e3347;border-radius:10px;padding:14px 16px;">
               <div style="font-size:11px;color:#6b8fa8;margin-bottom:4px;">누적 총 매출</div>
@@ -1342,7 +1343,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <!-- 3번 탭: 메뉴별 비율 (20개입/답례품/선물세트/사이드) -->
         <div id="maTab-3" class="ma-tab-panel" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🥧 1월~현재 메뉴별 판매 비율 (20개입 · 답례품 · 선물세트 · 사이드)</div>
+            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🥧 <span class="ma-range">1월~현재</span> 메뉴별 판매 비율 (20개입 · 답례품 · 선물세트 · 사이드)</div>
             <div id="productTypeMetricToggle" style="display:flex;gap:4px;"></div>
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
@@ -1360,12 +1361,18 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
               <div id="productType20Legend" style="flex:1;min-width:220px;"></div>
             </div>
           </div>
+          <div style="margin-top:20px;padding-top:16px;border-top:0.5px solid #1e3347;">
+            <div id="productTypeMonthlyTitle" style="font-size:12px;color:#7eb8e8;font-weight:700;margin-bottom:10px;"></div>
+            <div id="productTypeMonthlyTable" style="overflow-x:auto;"></div>
+            <div id="productTypeMonthlyPctTitle" style="font-size:12px;color:#7eb8e8;font-weight:700;margin:18px 0 10px;"></div>
+            <div id="productTypeMonthlyPctTable" style="overflow-x:auto;"></div>
+          </div>
         </div>
 
         <!-- 4번 탭: 20개입(맛별 판매비중) -->
         <div id="maTab-4" class="ma-tab-panel" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🍯 20개입 상품군 내 맛/조합별 판매 비중 (1월~현재)</div>
+            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🍯 20개입 상품군 내 맛/조합별 판매 비중 (<span class="ma-range">1월~현재</span>)</div>
             <div id="productType20FlavorMetricToggle" style="display:flex;gap:4px;"></div>
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
@@ -1379,7 +1386,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <!-- 5번 탭: 답례품(맛별 판매비중) -->
         <div id="maTab-5" class="ma-tab-panel" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🎁 답례품 상품군 내 맛/조합별 판매 비중 (1월~현재)</div>
+            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🎁 답례품 상품군 내 맛/조합별 판매 비중 (<span class="ma-range">1월~현재</span>)</div>
             <div id="giftFlavorMetricToggle" style="display:flex;gap:4px;"></div>
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
@@ -1418,7 +1425,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           </div>
 
           <div style="margin-bottom:22px;padding:14px;background:#0f2133;border-radius:10px;">
-            <div style="font-size:12px;color:#4ade80;font-weight:700;margin-bottom:10px;">🌿 쑥 (1월~현재)</div>
+            <div style="font-size:12px;color:#4ade80;font-weight:700;margin-bottom:10px;">🌿 쑥 (<span class="ma-range">1월~현재</span>)</div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
               <div id="nmMugwortSummary" style="flex:0 0 160px;font-size:12px;color:#c8dff0;"></div>
               <div style="position:relative;flex:1;min-width:260px;height:230px;"><canvas id="nmMugwortMonthChart"></canvas></div>
@@ -1653,7 +1660,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
 
         <!-- 11번 탭: 카테고리 비중 분석 (기존 3개 그래프) -->
         <div id="maTab-11" class="ma-tab-panel" style="display:none;">
-          <div style="font-size:12px;color:#7eb8e8;font-weight:700;margin-bottom:12px;">📈 1월~현재 메뉴 총합 비중 (팥 / 앙버터 / 레몬버터 / 딸기 / 청사과)</div>
+          <div style="font-size:12px;color:#7eb8e8;font-weight:700;margin-bottom:12px;">📈 <span class="ma-range">1월~현재</span> 메뉴 총합 비중 (팥 / 앙버터 / 레몬버터 / 딸기 / 청사과)</div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
             <div style="position:relative;width:260px;height:260px;flex-shrink:0;">
               <canvas id="menuAnalysisPieChart"></canvas>
@@ -10125,6 +10132,37 @@ function renderCannibalNewMenuBreakdownTable(monthly) {
   el.innerHTML = html;
 }
 
+
+// ── 메뉴 분석: '1월~현재' 대신 실제 날짜 표시 ──
+// 끝 날짜 = 메뉴 데이터 갱신(menu-index.json updatedAt, 한국 시간)의 전날. 실시간이 아니라 갱신 시점 기준임을 함께 표시.
+function fmtKst_(iso){
+  const k = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
+  const p = n => String(n).padStart(2, '0');
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`;
+}
+function menuRangeInfo_(){
+  const months = (AVAILABLE_MENU_MONTHS || []).filter(m => MENU_DATA_BY_MONTH[m]).sort((a, b) => a - b);
+  if (!months.length) return null;
+  const first = months[0], last = months[months.length - 1];
+  const cut = get25ProdCutoff();
+  const dim = new Date(2026, last, 0).getDate();
+  const endDay = (cut.year === 2026 && cut.month === last) ? Math.min(cut.day, dim) : dim;
+  return {
+    first, last, endDay, partial: endDay < dim,
+    text: `${first}월 1일~${last}월 ${endDay}일`,
+    updated: window.__menuIndexUpdatedAt ? fmtKst_(window.__menuIndexUpdatedAt) : ''
+  };
+}
+function applyMenuRangeLabels_(){
+  const info = menuRangeInfo_();
+  if (!info) return;
+  document.querySelectorAll('.ma-range').forEach(el => { el.textContent = info.text; });
+  const t = document.getElementById('menuPanelTitle');
+  if (t && t.textContent.startsWith('메뉴 분석')) t.textContent = `메뉴 분석 (${info.text})`;
+  const n = document.getElementById('maRangeNote');
+  if (n) n.textContent = `📅 26년 ${info.text} 판매 데이터 · 실시간이 아니라 메뉴 데이터 갱신 시점 기준${info.updated ? ` (마지막 갱신 ${info.updated})` : ''}`;
+}
+
 // ── 3번 탭: 메뉴별 비율 (20개입/답례품/선물세트/사이드) ──
 const PRODUCT_TYPE_CATEGORIES = ['20개입', '답례품', '선물세트', '사이드', '팥 간식용'];
 const PRODUCT_TYPE_COLORS = {
@@ -10306,10 +10344,63 @@ function renderProductType20PieChart() {
   }
 }
 
+
+// 3번 탭 하단: 월별 수량(또는 금액) / 월별 비중 표 — 위쪽 '수량 기준 / 금액 기준' 토글을 따라감
+function computeProductTypeMonthly(metric){
+  const m = metric || productTypeMetric;
+  const months = (AVAILABLE_MENU_MONTHS || []).filter(x => MENU_DATA_BY_MONTH[x]).sort((a, b) => a - b);
+  return months.map(mo => {
+    const t = {}; PRODUCT_TYPE_CATEGORIES.forEach(c => t[c] = 0);
+    (MENU_DATA_BY_MONTH[mo] || []).forEach(row => {
+      const qty = row['수량'] || 0;
+      if (qty <= 0) return;
+      const type = classifyProductType(row);
+      if (!type) return;
+      t[type] += m === 'amt' ? qty * (PRICE_MAP[row['상품명']] || 0) : qty;
+    });
+    return { month: mo, totals: t, sum: PRODUCT_TYPE_CATEGORIES.reduce((a, c) => a + t[c], 0) };
+  });
+}
+function renderProductTypeMonthlyTable(){
+  const el1 = document.getElementById('productTypeMonthlyTable');
+  const el2 = document.getElementById('productTypeMonthlyPctTable');
+  if (!el1 || !el2) return;
+  const metric = productTypeMetric;
+  const rows = computeProductTypeMonthly(metric);
+  const info = menuRangeInfo_();
+  const cats = PRODUCT_TYPE_CATEGORIES;
+  const label = d => (info && info.partial && d.month === info.last) ? `${d.month}월(~${info.endDay}일)` : `${d.month}월`;
+  const fmtV = v => metric === 'amt' ? fmtAmt(v) : v.toLocaleString();
+  const th = (t, color) => `<th style="padding:5px 10px;text-align:right;color:${color || '#6b8fa8'};">${t}</th>`;
+  const head = `<thead><tr style="border-bottom:1px solid #2a5a8a;"><th style="padding:5px 10px;text-align:left;color:#6b8fa8;">월</th>${cats.map(c => th(c, PRODUCT_TYPE_COLORS[c])).join('')}${th('합계')}</tr></thead>`;
+  const td = (t, extra) => `<td style="padding:5px 10px;text-align:right;${extra || ''}">${t}</td>`;
+  const tot = {}; cats.forEach(c => tot[c] = 0); let totSum = 0;
+  rows.forEach(d => { cats.forEach(c => tot[c] += d.totals[c]); totSum += d.sum; });
+
+  const qtyBody = rows.map(d =>
+    `<tr style="border-bottom:0.5px solid #1e3347;"><td style="padding:5px 10px;color:#9fc1de;">${label(d)}</td>${cats.map(c => td(fmtV(d.totals[c]), 'color:#c8dff0;')).join('')}${td(fmtV(d.sum), 'color:#e0f0ff;font-weight:700;')}</tr>`
+  ).join('') + `<tr style="border-top:1px solid #2a5a8a;"><td style="padding:5px 10px;color:#e0f0ff;font-weight:700;">합계</td>${cats.map(c => td(fmtV(tot[c]), 'color:#e0f0ff;font-weight:700;')).join('')}${td(fmtV(totSum), 'color:#ffd166;font-weight:700;')}</tr>`;
+
+  const pct = (v, s) => s ? (v / s * 100).toFixed(1) + '%' : '-';
+  const pctBody = rows.map(d =>
+    `<tr style="border-bottom:0.5px solid #1e3347;"><td style="padding:5px 10px;color:#9fc1de;">${label(d)}</td>${cats.map(c => td(pct(d.totals[c], d.sum), 'color:#c8dff0;')).join('')}${td('100%', 'color:#6b8fa8;')}</tr>`
+  ).join('') + `<tr style="border-top:1px solid #2a5a8a;"><td style="padding:5px 10px;color:#e0f0ff;font-weight:700;">전체</td>${cats.map(c => td(pct(tot[c], totSum), 'color:#e0f0ff;font-weight:700;')).join('')}${td('100%', 'color:#6b8fa8;')}</tr>`;
+
+  const unitName = metric === 'amt' ? '금액' : '수량';
+  const range = info ? ` (${info.text})` : '';
+  const t1 = document.getElementById('productTypeMonthlyTitle');
+  const t2 = document.getElementById('productTypeMonthlyPctTitle');
+  if (t1) t1.textContent = `📋 월별 ${unitName}${range}`;
+  if (t2) t2.textContent = `📋 월별 비중 (%) · ${unitName} 기준`;
+  el1.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">${head}<tbody>${qtyBody}</tbody></table>`;
+  el2.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">${head}<tbody>${pctBody}</tbody></table>`;
+}
+
 function renderProductTypeTab() {
   renderProductTypeMetricToggle();
   renderProductTypePieChart();
   renderProductType20PieChart();
+  renderProductTypeMonthlyTable();
 }
 
 // ── 4번 탭: 20개입 맛/조합별 판매 비중 ──
@@ -12170,7 +12261,7 @@ async function onMenuAnalysisClick() {
   document.getElementById('menuAnalysisTab').classList.add('active');
 
   currentMenuMonth = null;
-  document.getElementById('menuPanelTitle').textContent = '메뉴 분석 (1월~현재)';
+  document.getElementById('menuPanelTitle').textContent = '메뉴 분석 (1월~현재)'; // 아래 applyMenuRangeLabels_()가 날짜로 바꿈
   document.getElementById('menuPanel').classList.add('open');
 
   const managerTabs = document.getElementById('menuManagerTabs');
@@ -12180,6 +12271,7 @@ async function onMenuAnalysisClick() {
   document.getElementById('menuRegionView').style.display = 'none';
   document.getElementById('menuManagerView').style.display = 'none';
   document.getElementById('menuAnalysisView').style.display = '';
+  applyMenuRangeLabels_();
 
   renderMenuAnalysisSubtabs();
   switchMenuAnalysisSubtab(1);
