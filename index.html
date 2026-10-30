@@ -1343,7 +1343,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <!-- 3번 탭: 메뉴별 비율 (20개입/답례품/선물세트/사이드) -->
         <div id="maTab-3" class="ma-tab-panel" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🥧 <span class="ma-range">1월~현재</span> 메뉴별 판매 비율 (20개입 · 답례품 · 선물세트 · 사이드)</div>
+            <div style="font-size:12px;color:#7eb8e8;font-weight:700;">🥧 <span class="ma-range">1월~현재</span> 메뉴별 판매 비율 (20개입 · 답례품 · 선물세트 · 사이드 · 팥 간식용 · 음료)</div>
             <div id="productTypeMetricToggle" style="display:flex;gap:4px;"></div>
           </div>
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
@@ -1366,6 +1366,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
             <div id="productTypeMonthlyTable" style="overflow-x:auto;"></div>
             <div id="productTypeMonthlyPctTitle" style="font-size:12px;color:#7eb8e8;font-weight:700;margin:18px 0 10px;"></div>
             <div id="productTypeMonthlyPctTable" style="overflow-x:auto;"></div>
+            <div style="font-size:10.5px;color:#6b8fa8;margin-top:8px;">※ 음료: 판매 데이터에서 '답례품' 분류로 함께 잡히는 콜드브루·팥 밀크티 등 (답례품 수량에서는 제외)</div>
           </div>
         </div>
 
@@ -10164,20 +10165,25 @@ function applyMenuRangeLabels_(){
 }
 
 // ── 3번 탭: 메뉴별 비율 (20개입/답례품/선물세트/사이드) ──
-const PRODUCT_TYPE_CATEGORIES = ['20개입', '답례품', '선물세트', '사이드', '팥 간식용'];
+const PRODUCT_TYPE_CATEGORIES = ['20개입', '답례품', '선물세트', '사이드', '팥 간식용', '음료'];
 const PRODUCT_TYPE_COLORS = {
   '20개입': '#38bdf8',
   '답례품': '#a855f7',
   '선물세트': '#f59e0b',
   '사이드': '#4ade80',
-  '팥 간식용': '#f472b6'
+  '팥 간식용': '#f472b6',
+  '음료': '#2dd4bf'
 };
 
 function classifyProductType(row) {
   const cat = row['상품분류'] || '';
   const name = row['상품명'] || '';
   if (name === '넛티 요거트 볼') return null;
-  if (cat === '답례품') return '답례품';
+  if (cat === '답례품') {
+    // 판매 데이터에서는 콜드브루·팥 밀크티 같은 음료도 '답례품' 분류로 함께 잡힘 → 이름이 '답례품'으로 시작하지 않으면 따로 분리
+    if (name.startsWith('답례품')) return '답례품';
+    return name.includes('선물세트') ? '선물세트' : '음료';
+  }
   if (cat === '사이드') return '사이드';
   if (cat === '호두과자') {
     if (name === '팥 간식용 11개') return '팥 간식용';
