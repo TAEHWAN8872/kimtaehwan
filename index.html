@@ -427,6 +427,9 @@ body.hide-names .store-name:hover{
 .wp-help-btns{display:flex;gap:8px;margin:12px 0 6px;}
 .wp-btn{font-size:11px;padding:6px 12px;border-radius:8px;border:1px solid #2a5a8a;color:#7eb8e8;background:transparent;cursor:pointer;}
 .wp-btn:hover{background:#172840;}
+.wp-toggle{height:46px;padding:0 16px;border-radius:999px;border:1px solid #2a5a8a;background:rgba(10,23,48,.7);color:#7eb8e8;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.wp-toggle:hover{background:#172840;}
+.wp-toggle.on{background:#1a3a5c;border-color:#7eb8e8;color:#fff;}
 
 /* 재계약현황판 */
 .rc-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;}
@@ -1307,8 +1310,8 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <div class="wp-brand-ic">📂</div>
         <div><div class="wp-brand-t">복호두 업무 포털</div><div class="wp-brand-s">모든 업무를 한 곳에서! 필요한 자료를 빠르게 확인하세요.</div></div>
       </div>
-      <div class="wp-stat blue"><span class="si">▦</span><div><b id="wpStatSec">10개 업무 분야</b><small>체계적인 업무 분류</small></div></div>
-      <div class="wp-stat green"><span class="si">☰</span><div><b id="wpStatItems">총 35개 항목</b><small>모든 업무 한눈에!</small></div></div>
+      <div class="wp-stat blue"><span class="si">▦</span><div><b id="wpStatSec">9개 업무 분야</b><small>체계적인 업무 분류</small></div></div>
+      <div class="wp-stat green"><span class="si">☰</span><div><b id="wpStatItems">총 27개 항목</b><small>모든 업무 한눈에!</small></div></div>
       <div class="wp-search" id="wpSearchBox">
         <span>🔍</span>
         <input id="workSearch" placeholder="업무명을 검색해보세요.. (예: 매출, 차량, 마케팅 등)" oninput="window.renderWorkPage()">
@@ -5331,36 +5334,60 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const LS_KEY='bokhodu_work_links_v1', FAV_KEY='bokhodu_work_fav_v1', REC_KEY='bokhodu_work_recent_v1';
     // 모두에게 공통으로 보이게 하려면 여기에 'id':'URL' 형태로 넣으면 됩니다. (링크 내보내기 한 JSON 붙여넣기)
     // 'internal:sales' 처럼 쓰면 대시보드 안의 다른 탭으로 이동합니다.
-    const WORK_URLS_DEFAULT={ 'analysis-0':'internal:sales' };
+    const WORK_URLS_DEFAULT={
+      "analysis-0":"internal:sales",
+      "ops-0":"https://docs.google.com/spreadsheets/u/0/d/1cbLE4A4lYLcNKLAl7FsKpT6pZ5hsBVcoagjv5222HXw/edit",
+      "ops-1":"https://docs.google.com/spreadsheets/d/1NOkIDynWOguDokT6taOoUYMGDuMu8Wdlq9vWe5CcqS8/edit?gid=0#gid=0",
+      "ops-2":"https://docs.google.com/spreadsheets/d/1NOkIDynWOguDokT6taOoUYMGDuMu8Wdlq9vWe5CcqS8/edit?gid=491275288#gid=491275288",
+      "ops-3":"https://docs.google.com/spreadsheets/d/13_PWNvUaODP53WT7pR-792Ah6tZzwjTrSOS2T42vr6E/edit?gid=756922454#gid=756922454",
+      "ops-5":"https://app.notion.com/p/237fe0bdfdc580738a56f55a5414772a?v=302fe0bdfdc580ef8a82000c55a7eba1&__dm_a=1",
+      "ops-7":"https://docs.google.com/spreadsheets/d/1E0_R9Ovf284ZPIArprEFaIX1Jzk_yJ8mPV6J9P3lQXc/edit?gid=906914789#gid=906914789",
+      "ops-6":"https://script.google.com/macros/s/AKfycbw0z6WuoCF5LoB35KtPaZGgPBYo1ulD9MMsTZJ_EILLFfu0Qelr0HOWmO1XusCXgnUt/exec",
+      "ops-8":"https://app.notion.com/p/278fe0bdfdc5800fb95ee91199e533c0?v=278fe0bdfdc581f897e5000c2d1ea0ce&__dm_a=1",
+      "ops-11":"https://docs.google.com/spreadsheets/d/1NOkIDynWOguDokT6taOoUYMGDuMu8Wdlq9vWe5CcqS8/edit?gid=1346539893#gid=1346539893",
+      "car-0":"https://docs.google.com/spreadsheets/d/1ypd-hy1T7hF4X-UGXuPUNrjF5M7bPerb7-yqs0ff3qY/edit?gid=1502332736#gid=1502332736",
+      "car-1":"https://docs.google.com/spreadsheets/d/1pmVlpvpAaz9ERE7v62bdKGVC849QpFgL9o3_o2d88oI/edit",
+      "car-2":"https://docs.google.com/spreadsheets/d/1rEY4nEHTMgFKBtI6szPTf_L3Js5rfc5jC-p5-QuVe6E/edit?gid=1199715037#gid=1199715037",
+      "sales-0":"https://ubms.kisvan.co.kr/",
+      "sales-1":"https://semplus.kisvan.co.kr/",
+      "newstore-0":"https://docs.google.com/spreadsheets/d/139nGDvD-JbZwMgCtBanfRKuvp2TbaKRxMNa16IYsy0M/edit?gid=0#gid=0",
+      "newstore-1":"https://docs.google.com/spreadsheets/d/1NOkIDynWOguDokT6taOoUYMGDuMu8Wdlq9vWe5CcqS8/edit?gid=1741100144#gid=1741100144",
+      "newstore-2":"https://docs.google.com/spreadsheets/d/10r15ZS0NLbDrgH0t86VYwkufG30bUAIFcwsqK6uK-9I/edit?gid=1369141220#gid=1369141220",
+      "newstore-3":"https://app.notion.com/p/240fe0bdfdc5801c9b9dda9a3de3e9d8",
+      "sites-0":"https://www.iphillip.co.kr/membership/login.aspx?ReturnUrl=/mypage/default.aspx",
+      "sites-1":"https://reviewplace.co.kr/?auto_login=on",
+      "sites-2":"https://onlyonefoodnetfo.ifresh.co.kr/",
+      "sites-3":"https://nauth.gift-n.net/",
+      "sites-4":"https://franchise.baemin.com/login?redirect=%2F",
+      "etc-0":"https://app.notion.com/p/237fe0bdfdc580deb149d7abd99867a0",
+      "volume-0":"https://docs.google.com/spreadsheets/d/17AHgthYorKg0oP3-S5HKX_D-MBL3Zc2yf_gZ7qro2D0/edit?gid=0#gid=0",
+      "support-0":"https://docs.google.com/spreadsheets/d/1NOkIDynWOguDokT6taOoUYMGDuMu8Wdlq9vWe5CcqS8/edit?gid=1579282889#gid=1579282889"
+    };
     const TYPE_CLS={'월별관리':'t-m','일별관리':'t-d','체크관리':'t-c'};
     const TYPE_SHORT={'월별관리':'월별','일별관리':'일별','체크관리':'체크'};
-    const PREVIEW=5;
+    const PREVIEW=5; const HIDE_KEY='bokhodu_work_hide_unreg_v1';
     const SECTIONS=[
       {id:'ops',title:'운영팀 업무',sub:'복호두 운영 및 매장 관리',icon:'📋',c:'#fbbf24',g1:'#fde68a',g2:'#fbbf24',cd:'#b45309',items:[
-        ['월별관리','복호두 운영팀 로열티'],['월별관리','복호두 운영팀 업무평가'],['월별관리','복호두 가맹점 기본정보 자료'],['월별관리','복호두 양도양수 리스트'],
-        ['일별관리','복호두 마케팅 월별 진행'],['일별관리','복호두 CS 관리대장'],['일별관리','신규 CS 관리대장'],
-        ['체크관리','복호두 네이버 계정리스트'],['체크관리','복호두 블로그체험단리스트(무이)'],['체크관리','CJ 발주 체크 매크로 시트'],['체크관리','메타광고 결과 그래프'],['체크관리','복호두 운영팀 담당매장']]},
+        ['월별관리','복호두 운영팀 로열티',0],['월별관리','복호두 운영팀 업무평가',1],['월별관리','복호두 가맹점 기본정보 자료',2],['월별관리','복호두 양도양수 리스트',3],['일별관리','복호두 CS 관리대장',5],['일별관리','신규 CS 관리대장',6],['체크관리','복호두 네이버 계정리스트',7],['체크관리','복호두 블로그체험단리스트(무이)',8],['체크관리','복호두 운영팀 담당매장',11]]},
       {id:'car',title:'차량 업무',sub:'차량 관리 및 일지',icon:'🚗',c:'#fb923c',g1:'#fed7aa',g2:'#fb923c',cd:'#c2410c',items:[
-        ['월별관리','티볼리 31거 4235 차량일지'],['월별관리','티볼리 08무 6256 차량일지'],['월별관리','K5 389버 7362 차량일지']]},
+        ['월별관리','티볼리 31거 4235 차량일지',0],['월별관리','티볼리 08무 6256 차량일지',1],['월별관리','K5 389버 7362 차량일지',2]]},
       {id:'sales',title:'매출 업무',sub:'매출 및 단말기 관리',icon:'📊',c:'#60a5fa',g1:'#bfdbfe',g2:'#60a5fa',cd:'#1d4ed8',items:[
-        ['일별관리','KIS UBMS(매장별 단말기 매출)'],['일별관리','SEMPLUS(매장별 단말기매출)']]},
-      {id:'mkt',title:'마케팅',sub:'마케팅 자료 및 시스템',icon:'📣',c:'#f472b6',g1:'#fbcfe8',g2:'#f472b6',cd:'#be185d',items:[
-        ['일별관리','마케팅 전용 주소 시트'],['일별관리','본부장님 데이터 시트']]},
+        ['일별관리','KIS UBMS(매장별 단말기 매출)',0],['일별관리','SEMPLUS(매장별 단말기매출)',1]]},
       {id:'support',title:'지원팀',sub:'지원 및 재고 관리',icon:'👥',c:'#a78bfa',g1:'#ddd6fe',g2:'#a78bfa',cd:'#6d28d9',items:[
-        ['일별관리','지원팀 마케팅 금액'],['일별관리','복호두 재고관리']]},
+        ['일별관리','지원팀 마케팅 금액',0]]},
       {id:'newstore',title:'신규 매장 업무',sub:'신규 및 양도양수 체계관리',icon:'🏪',c:'#4ade80',g1:'#bbf7d0',g2:'#4ade80',cd:'#15803d',items:[
-        ['체크관리','기계출고 체크리스트'],['체크관리','오픈 지원(블로그,맘카페,육포)'],['체크관리','양도양수 프로세스'],['일별관리','신규 및 양도양수 체크리스트(노션)']]},
+        ['체크관리','기계출고 체크리스트',0],['체크관리','오픈 지원(블로그,맘카페,육포)',1],['체크관리','양도양수 프로세스',2],['일별관리','신규 및 양도양수 체크리스트(노션)',3]]},
       {id:'sites',title:'기타 사이트',sub:'외부 사이트 및 관련 자료',icon:'🌐',c:'#38bdf8',g1:'#bae6fd',g2:'#38bdf8',cd:'#0369a1',items:[
-        ['체크관리','전단지(아이필립)'],['체크관리','리뷰플래닛'],['체크관리','CJ FOODNET'],['체크관리','모바일 상품권'],['체크관리','배민 파트너오피스']]},
+        ['체크관리','전단지(아이필립)',0],['체크관리','리뷰플래닛',1],['체크관리','CJ FOODNET',2],['체크관리','모바일 상품권',3],['체크관리','배민 파트너오피스',4]]},
       {id:'etc',title:'기타',sub:'업체별 고객센터 모음',icon:'📁',c:'#c084fc',g1:'#e9d5ff',g2:'#c084fc',cd:'#7e22ce',items:[
-        ['체크관리','업체별 고객센터 번호']]},
+        ['체크관리','업체별 고객센터 번호',0]]},
       {id:'volume',title:'판매량 데이터',sub:'상품별 판매량 및 데이터',icon:'🗄️',c:'#34d399',g1:'#a7f3d0',g2:'#34d399',cd:'#047857',items:[
-        ['월별관리','로드,달래폼,임의등록'],['일별관리','쑥 판매량 시트'],['일별관리','그래놀라 판매량 시트']]},
+        ['월별관리','로드,달래폼,임의등록',0]]},
       {id:'analysis',title:'매출 분석',sub:'매출 현황판 및 분석',icon:'📈',c:'#facc15',g1:'#fef08a',g2:'#facc15',cd:'#a16207',items:[
-        ['체크관리','매출 현황판']]}
+        ['체크관리','매출 현황판',0]]}
     ];
     const BY_ID={}; let TOTAL=0;
-    SECTIONS.forEach(sec=>sec.items.forEach((it,i)=>{ const id=sec.id+'-'+i; BY_ID[id]={id:id,sec:sec,type:it[0],name:it[1]}; TOTAL++; }));
+    SECTIONS.forEach(sec=>sec.items.forEach((it,i)=>{ const id=sec.id+'-'+it[2]; BY_ID[id]={id:id,sec:sec,type:it[0],name:it[1]}; TOTAL++; }));
     let modal=null;
 
     const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -5370,6 +5397,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const saveSaved=o=>{ if(!writeJson(LS_KEY,o)) alert('이 브라우저에서는 링크를 저장할 수 없어요.'); };
     const getUrl=id=>{ const sv=loadSaved(); const v=(id in sv)?sv[id]:WORK_URLS_DEFAULT[id]; return v||''; };
     const idList=k=>{ const a=readJson(k,[]); return Array.isArray(a)?a.filter(id=>BY_ID[id]):[]; };
+    const hideUnreg=()=>readJson(HIDE_KEY,false)===true;
+    const isVisible=r=>!hideUnreg()||!!getUrl(r.id);
 
     function row(r,showSec,fs){
       const has=!!getUrl(r.id), fav=fs.has(r.id);
@@ -5387,21 +5416,23 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const inp=document.getElementById('workSearch');
       const q=((inp&&inp.value)||'').trim().toLowerCase();
       const box=document.getElementById('wpSearchBox'); if(box) box.classList.toggle('has',!!q);
-      const s1=document.getElementById('wpStatSec'); if(s1) s1.textContent=SECTIONS.length+'개 업무 분야';
-      const s2=document.getElementById('wpStatItems'); if(s2) s2.textContent='총 '+TOTAL+'개 항목';
+      let vs=0,vt=0; SECTIONS.forEach(sec=>{ const n=sec.items.filter((it,i)=>isVisible(BY_ID[sec.id+'-'+it[2]])).length; if(n){ vs++; vt+=n; } });
+      const hb=document.getElementById('wpHideBtn'); if(hb){ hb.classList.toggle('on',hideUnreg()); hb.textContent=hideUnreg()?'🧹 미등록 숨김 중 (눌러서 보기)':'🧹 미등록 숨기기'; }
+      const s1=document.getElementById('wpStatSec'); if(s1) s1.textContent=vs+'개 업무 분야';
+      const s2=document.getElementById('wpStatItems'); if(s2) s2.textContent='총 '+vt+'개 항목';
       const fs=new Set(idList(FAV_KEY));
       let html='';
       SECTIONS.forEach(sec=>{
-        const all=sec.items.map((it,i)=>BY_ID[sec.id+'-'+i]);
+        const all=sec.items.map((it,i)=>BY_ID[sec.id+'-'+it[2]]).filter(isVisible);
         const rows=q?all.filter(r=>r.name.toLowerCase().includes(q)||sec.title.toLowerCase().includes(q)||sec.sub.toLowerCase().includes(q)||TYPE_SHORT[r.type].includes(q)):all;
         if(!rows.length) return;
         const shown=q?rows:rows.slice(0,PREVIEW);
         html+=`<div class="wp-card" style="--c:${sec.c};--g1:${sec.g1};--g2:${sec.g2};--cd:${sec.cd}">`+
-          `<div class="wp-card-h"><div class="wp-ic">${sec.icon}</div><div><div class="wp-title">${esc(sec.title)}</div><div class="wp-sub">${esc(sec.sub)}</div></div><span class="wp-cnt">${sec.items.length}개</span></div>`+
+          `<div class="wp-card-h"><div class="wp-ic">${sec.icon}</div><div><div class="wp-title">${esc(sec.title)}</div><div class="wp-sub">${esc(sec.sub)}</div></div><span class="wp-cnt">${all.length}개</span></div>`+
           `<div class="wp-card-b"><div class="wp-list">${shown.map(r=>row(r,false,fs)).join('')}</div>`+
           `<div class="wp-more" onclick="window.workShowAll('${sec.id}')">전체보기 →</div></div></div>`;
       });
-      grid.innerHTML=html||'<div class="wp-empty">검색 결과가 없어요.</div>';
+      grid.innerHTML=html||('<div class="wp-empty">'+(q?'검색 결과가 없어요.':'링크가 등록된 항목이 없어요.')+'</div>');
       if(modal) renderModal();
     };
 
@@ -5411,13 +5442,13 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const fs=new Set(idList(FAV_KEY)); let title='', body='';
       if(modal.type==='all'){
         const sec=SECTIONS.find(x=>x.id===modal.sid);
-        title=sec.icon+' '+sec.title+' ('+sec.items.length+'개)';
-        body=sec.items.map((it,i)=>row(BY_ID[sec.id+'-'+i],false,fs)).join('');
+        const vis=sec.items.map((it,i)=>BY_ID[sec.id+'-'+it[2]]).filter(isVisible); title=sec.icon+' '+sec.title+' ('+vis.length+'개)';
+        body=vis.map(r=>row(r,false,fs)).join('');
       }else if(modal.type==='fav'){
-        const ids=idList(FAV_KEY); title='⭐ 즐겨찾기';
+        const ids=idList(FAV_KEY).filter(id=>isVisible(BY_ID[id])); title='⭐ 즐겨찾기';
         body=ids.length?ids.map(id=>row(BY_ID[id],true,fs)).join(''):'<div class="wp-empty">항목에 마우스를 올리고 ☆를 누르면 여기에 모여요.</div>';
       }else if(modal.type==='recent'){
-        const ids=idList(REC_KEY); title='🕒 최근 사용한 업무';
+        const ids=idList(REC_KEY).filter(id=>isVisible(BY_ID[id])); title='🕒 최근 사용한 업무';
         body=ids.length?ids.map(id=>row(BY_ID[id],true,fs)).join(''):'<div class="wp-empty">아직 열어본 업무가 없어요.</div>';
       }else{
         let unreg=0; Object.keys(BY_ID).forEach(id=>{ if(!getUrl(id)) unreg++; });
@@ -5440,6 +5471,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.workShowRecent=()=>openModal({type:'recent'});
     window.workShowHelp=()=>openModal({type:'help'});
     window.workCloseModal=function(){ modal=null; renderModal(); };
+    window.workToggleUnreg=function(){ writeJson(HIDE_KEY,!hideUnreg()); window.renderWorkPage(); };
     window.workClearSearch=function(){ const i=document.getElementById('workSearch'); if(i){ i.value=''; i.focus(); } window.renderWorkPage(); };
     if(!window.__workEscBound){ window.__workEscBound=true; document.addEventListener('keydown',e=>{ if(e.key==='Escape') window.workCloseModal(); }); }
 
