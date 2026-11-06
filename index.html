@@ -427,6 +427,18 @@ body.hide-names .store-name:hover{
 .wp-help-btns{display:flex;gap:8px;margin:12px 0 6px;}
 .wp-btn{font-size:11px;padding:6px 12px;border-radius:8px;border:1px solid #2a5a8a;color:#7eb8e8;background:transparent;cursor:pointer;}
 .wp-btn:hover{background:#172840;}
+.wp-more.two{display:flex;justify-content:space-around;cursor:default;}
+.wp-more.two span{cursor:pointer;padding:0 6px;}
+.wp-more.two span:hover{filter:brightness(1.3);}
+.wp-emptyhint{font-size:11.5px;color:#7c93ad;text-align:center;padding:22px 6px;line-height:1.7;}
+.wp-ico.show{opacity:.85;}
+.wp-form label{display:block;font-size:11px;color:#8fa9c4;margin:12px 0 4px;}
+.wp-form input{width:100%;box-sizing:border-box;background:#0d1b2a;border:1px solid #2a5a8a;color:#dbeafe;border-radius:8px;padding:9px 11px;font-size:12px;outline:none;}
+.wp-form input:focus{border-color:#7eb8e8;}
+.wp-form-btns{display:flex;gap:8px;margin-top:16px;align-items:center;}
+.wp-btn.primary{background:#1a3a5c;border-color:#7eb8e8;color:#fff;}
+.wp-btn.danger{border-color:#7f1d1d;color:#f87171;}
+.wp-form-note{font-size:10.5px;color:#7c93ad;margin:12px 0 0;}
 .wp-toggle{height:46px;padding:0 16px;border-radius:999px;border:1px solid #2a5a8a;background:rgba(10,23,48,.7);color:#7eb8e8;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .wp-toggle:hover{background:#172840;}
 .wp-toggle.on{background:#1a3a5c;border-color:#7eb8e8;color:#fff;}
@@ -5329,9 +5341,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
   // ===== 📌 업무 포털 (구글시트 링크 모음) =====
   (function(){
-    const LS_KEY='bokhodu_work_links_v1', FAV_KEY='bokhodu_work_fav_v1', REC_KEY='bokhodu_work_recent_v1';
-    // 모두에게 공통으로 보이게 하려면 여기에 'id':'URL' 형태로 넣으면 됩니다. (링크 내보내기 한 JSON 붙여넣기)
-    // 'internal:sales' 처럼 쓰면 대시보드 안의 다른 탭으로 이동합니다.
+    const LS_KEY='bokhodu_work_links_v1', FAV_KEY='bokhodu_work_fav_v1', REC_KEY='bokhodu_work_recent_v1', MY_KEY='bokhodu_work_my_v1';
+    // 모두에게 공통으로 보이는 링크: 'id':'URL' 형태. 'internal:sales' 처럼 쓰면 대시보드 안의 다른 탭으로 이동합니다.
     const WORK_URLS_DEFAULT={
       "analysis-0":"internal:sales",
       "ops-0":"https://docs.google.com/spreadsheets/u/0/d/1cbLE4A4lYLcNKLAl7FsKpT6pZ5hsBVcoagjv5222HXw/edit",
@@ -5363,7 +5374,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     };
     const TYPE_CLS={'월별관리':'t-m','일별관리':'t-d','체크관리':'t-c'};
     const TYPE_SHORT={'월별관리':'월별','일별관리':'일별','체크관리':'체크'};
-    const PREVIEW=5; const HIDE_KEY='bokhodu_work_hide_unreg_v1';
+    const PREVIEW=5;
     const SECTIONS=[
       {id:'ops',title:'운영팀 업무',sub:'복호두 운영 및 매장 관리',icon:'📋',c:'#fbbf24',g1:'#fde68a',g2:'#fbbf24',cd:'#b45309',items:[
         ['월별관리','복호두 운영팀 로열티',0],['월별관리','복호두 운영팀 업무평가',1],['월별관리','복호두 가맹점 기본정보 자료',2],['월별관리','복호두 양도양수 리스트',3],['일별관리','복호두 CS 관리대장',5],['일별관리','신규 CS 관리대장',6],['체크관리','복호두 네이버 계정리스트',7],['체크관리','복호두 블로그체험단리스트(무이)',8],['체크관리','복호두 운영팀 담당매장',11]]},
@@ -5384,8 +5395,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       {id:'analysis',title:'매출 분석',sub:'매출 현황판 및 분석',icon:'📈',c:'#facc15',g1:'#fef08a',g2:'#facc15',cd:'#a16207',items:[
         ['체크관리','매출 현황판',0]]}
     ];
-    const BY_ID={}; let TOTAL=0;
-    SECTIONS.forEach(sec=>sec.items.forEach((it,i)=>{ const id=sec.id+'-'+it[2]; BY_ID[id]={id:id,sec:sec,type:it[0],name:it[1]}; TOTAL++; }));
+    // 나의 업무: 이 브라우저에만 저장되는, 직접 추가/수정/삭제하는 카드
+    const MY={id:'my',title:'나의 업무',sub:'나만 보는 업무 · 직접 편집',icon:'📝',c:'#fb7185',g1:'#fecdd3',g2:'#fb7185',cd:'#be123c',mine:true,items:[]};
+    SECTIONS.push(MY);
+    const BY_ID={};
+    SECTIONS.forEach(sec=>{ if(!sec.mine) sec.items.forEach(it=>{ const id=sec.id+'-'+it[2]; BY_ID[id]={id:id,sec:sec,type:it[0],name:it[1]}; }); });
     let modal=null;
 
     const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -5393,45 +5407,52 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const writeJson=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } };
     const loadSaved=()=>{ const o=readJson(LS_KEY,{}); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; };
     const saveSaved=o=>{ if(!writeJson(LS_KEY,o)) alert('이 브라우저에서는 링크를 저장할 수 없어요.'); };
-    const getUrl=id=>{ const sv=loadSaved(); const v=(id in sv)?sv[id]:WORK_URLS_DEFAULT[id]; return v||''; };
+    const myList=()=>{ const a=readJson(MY_KEY,[]); return Array.isArray(a)?a.filter(x=>x&&/^[a-z0-9]+$/i.test(String(x.k))&&typeof x.name==='string'):[]; };
+    const saveMy=a=>{ if(!writeJson(MY_KEY,a)) alert('이 브라우저에서는 저장할 수 없어요.'); };
+    function rebuildMy(){
+      Object.keys(BY_ID).forEach(id=>{ if(BY_ID[id].sec.mine) delete BY_ID[id]; });
+      MY.items=myList().map(x=>{ const id='my-'+x.k; BY_ID[id]={id:id,sec:MY,type:'',name:x.name,url:x.url||''}; return ['',x.name,x.k]; });
+    }
+    const getUrl=id=>{ const r=BY_ID[id]; if(r&&r.sec.mine) return r.url||''; const sv=loadSaved(); const v=(id in sv)?sv[id]:WORK_URLS_DEFAULT[id]; return v||''; };
     const idList=k=>{ const a=readJson(k,[]); return Array.isArray(a)?a.filter(id=>BY_ID[id]):[]; };
-    const hideUnreg=()=>readJson(HIDE_KEY,false)===true;
-    const isVisible=r=>!hideUnreg()||!!getUrl(r.id);
+    rebuildMy();
 
-    function row(r,showSec,fs){
-      const has=!!getUrl(r.id), fav=fs.has(r.id);
+    function row(r,showSec,fs,reorder){
+      const has=!!getUrl(r.id), fav=fs.has(r.id), mine=!!r.sec.mine;
       return `<div class="wp-item ${has?'':'nolink'}" style="--c:${r.sec.c}" onclick="window.workOpen('${r.id}')">`+
         `<span class="wp-dot"></span><span class="wp-name">${esc(r.name)}</span>`+
         (showSec?`<span class="wp-sec">${esc(r.sec.title)}</span>`:'')+
-        (has?'':'<span class="wp-nolink">미등록</span>')+
-        `<span class="wp-tag ${TYPE_CLS[r.type]}">${TYPE_SHORT[r.type]}</span>`+
+        (has?'':'<span class="wp-nolink">링크 없음</span>')+
+        (r.type?`<span class="wp-tag ${TYPE_CLS[r.type]}">${TYPE_SHORT[r.type]}</span>`:'')+
+        (mine&&reorder?`<button class="wp-ico show" title="위로" onclick="event.stopPropagation();window.workMyMove('${r.id}',-1)">▲</button><button class="wp-ico show" title="아래로" onclick="event.stopPropagation();window.workMyMove('${r.id}',1)">▼</button>`:'')+
         `<button class="wp-ico ${fav?'on':''}" title="즐겨찾기" onclick="event.stopPropagation();window.workFav('${r.id}')">${fav?'★':'☆'}</button>`+
-        `<button class="wp-ico" title="링크 수정" onclick="event.stopPropagation();window.workEdit('${r.id}')">✏️</button></div>`;
+        (mine?`<button class="wp-ico" title="수정" onclick="event.stopPropagation();window.workMyEdit('${r.id}')">✏️</button><button class="wp-ico" title="삭제" onclick="event.stopPropagation();window.workMyDelete('${r.id}')">🗑️</button>`
+             :`<button class="wp-ico" title="링크 수정" onclick="event.stopPropagation();window.workEdit('${r.id}')">✏️</button>`)+
+        '</div>';
     }
 
     window.renderWorkPage=function(){
       const grid=document.getElementById('workGrid'); if(!grid) return;
+      rebuildMy();
       const inp=document.getElementById('workSearch');
       const q=((inp&&inp.value)||'').trim().toLowerCase();
       const box=document.getElementById('wpSearchBox'); if(box) box.classList.toggle('has',!!q);
-      let vs=0,vt=0; SECTIONS.forEach(sec=>{ const n=sec.items.filter((it,i)=>isVisible(BY_ID[sec.id+'-'+it[2]])).length; if(n){ vs++; vt+=n; } });
-      const hb=document.getElementById('wpHideBtn'); if(hb){ hb.classList.toggle('on',hideUnreg()); hb.textContent=hideUnreg()?'🧹 미등록 숨김 중 (눌러서 보기)':'🧹 미등록 숨기기'; }
-      const s1=document.getElementById('wpStatSec'); if(s1) s1.textContent=vs+'개 업무 분야';
-      const s2=document.getElementById('wpStatItems'); if(s2) s2.textContent='총 '+vt+'개 항목';
       const fs=new Set(idList(FAV_KEY));
       let html='';
       SECTIONS.forEach(sec=>{
-        const all=sec.items.map((it,i)=>BY_ID[sec.id+'-'+it[2]]).filter(isVisible);
-        const rows=q?all.filter(r=>r.name.toLowerCase().includes(q)||sec.title.toLowerCase().includes(q)||sec.sub.toLowerCase().includes(q)||TYPE_SHORT[r.type].includes(q)):all;
-        if(!rows.length) return;
+        const all=sec.items.map(it=>BY_ID[sec.id+'-'+it[2]]);
+        const rows=q?all.filter(r=>r.name.toLowerCase().includes(q)||sec.title.toLowerCase().includes(q)||sec.sub.toLowerCase().includes(q)||(r.type&&TYPE_SHORT[r.type].includes(q))):all;
+        if(!rows.length&&(q||!sec.mine)) return;
         const shown=q?rows:rows.slice(0,PREVIEW);
+        const more=sec.mine
+          ?`<div class="wp-more two"><span onclick="window.workMyEdit('')">＋ 추가</span><span onclick="window.workShowAll('my')">전체보기 →</span></div>`
+          :`<div class="wp-more" onclick="window.workShowAll('${sec.id}')">전체보기 →</div>`;
         html+=`<div class="wp-card" style="--c:${sec.c};--g1:${sec.g1};--g2:${sec.g2};--cd:${sec.cd}">`+
           `<div class="wp-card-h"><div class="wp-ic">${sec.icon}</div><div><div class="wp-title">${esc(sec.title)}</div><div class="wp-sub">${esc(sec.sub)}</div></div><span class="wp-cnt">${all.length}개</span></div>`+
-          `<div class="wp-card-b"><div class="wp-list">${shown.map(r=>row(r,false,fs)).join('')}</div>`+
-          `<div class="wp-more" onclick="window.workShowAll('${sec.id}')">전체보기 →</div></div></div>`;
+          `<div class="wp-card-b"><div class="wp-list">${shown.length?shown.map(r=>row(r,false,fs)).join(''):'<div class="wp-emptyhint">아직 항목이 없어요.<br>＋ 추가를 눌러 만들어 보세요.</div>'}</div>${more}</div></div>`;
       });
-      grid.innerHTML=html||('<div class="wp-empty">'+(q?'검색 결과가 없어요.':'링크가 등록된 항목이 없어요.')+'</div>');
-      if(modal) renderModal();
+      grid.innerHTML=html||'<div class="wp-empty">검색 결과가 없어요.</div>';
+      if(modal&&modal.type!=='myedit') renderModal();
     };
 
     function renderModal(){
@@ -5440,28 +5461,41 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const fs=new Set(idList(FAV_KEY)); let title='', body='';
       if(modal.type==='all'){
         const sec=SECTIONS.find(x=>x.id===modal.sid);
-        const vis=sec.items.map((it,i)=>BY_ID[sec.id+'-'+it[2]]).filter(isVisible); title=sec.icon+' '+sec.title+' ('+vis.length+'개)';
-        body=vis.map(r=>row(r,false,fs)).join('');
+        const vis=sec.items.map(it=>BY_ID[sec.id+'-'+it[2]]);
+        title=sec.icon+' '+sec.title+' ('+vis.length+'개)';
+        body=vis.length?vis.map(r=>row(r,false,fs,sec.mine)).join(''):'<div class="wp-empty">아직 항목이 없어요.</div>';
+        if(sec.mine) body+='<div class="wp-help-btns"><button class="wp-btn" onclick="window.workMyEdit(\'\')">＋ 항목 추가</button></div>';
+      }else if(modal.type==='myedit'){
+        const cur=modal.id?BY_ID[modal.id]:null;
+        title=cur?'📝 나의 업무 수정':'📝 나의 업무 추가';
+        body='<div class="wp-form">'+
+          '<label>업무 이름</label><input id="wpMyName" maxlength="60" placeholder="예: 이번 주 할 일 시트" onkeydown="if(event.key===\'Enter\')window.workMySave()" value="'+esc(cur?cur.name:'')+'">'+
+          '<label>링크 주소 (없어도 돼요)</label><input id="wpMyUrl" placeholder="https://..." onkeydown="if(event.key===\'Enter\')window.workMySave()" value="'+esc(cur?(cur.url||''):'')+'">'+
+          '<div class="wp-form-btns">'+(cur?'<button class="wp-btn danger" onclick="window.workMyDelete(\''+cur.id+'\')">🗑️ 삭제</button>':'')+
+          '<span style="flex:1"></span><button class="wp-btn" onclick="window.workCloseModal()">취소</button><button class="wp-btn primary" onclick="window.workMySave()">저장</button></div>'+
+          '<p class="wp-form-note">나의 업무는 이 브라우저에만 저장돼요. (다른 사람에게는 보이지 않아요)</p></div>';
       }else if(modal.type==='fav'){
-        const ids=idList(FAV_KEY).filter(id=>isVisible(BY_ID[id])); title='⭐ 즐겨찾기';
+        const ids=idList(FAV_KEY); title='⭐ 즐겨찾기';
         body=ids.length?ids.map(id=>row(BY_ID[id],true,fs)).join(''):'<div class="wp-empty">항목에 마우스를 올리고 ☆를 누르면 여기에 모여요.</div>';
       }else if(modal.type==='recent'){
-        const ids=idList(REC_KEY).filter(id=>isVisible(BY_ID[id])); title='🕒 최근 사용한 업무';
+        const ids=idList(REC_KEY); title='🕒 최근 사용한 업무';
         body=ids.length?ids.map(id=>row(BY_ID[id],true,fs)).join(''):'<div class="wp-empty">아직 열어본 업무가 없어요.</div>';
       }else{
-        let unreg=0; Object.keys(BY_ID).forEach(id=>{ if(!getUrl(id)) unreg++; });
+        let unreg=0; const keys=Object.keys(BY_ID); keys.forEach(id=>{ if(!getUrl(id)) unreg++; });
         title='💡 도움말';
         body='<div class="wp-help">'+
           '<p>• 항목을 클릭하면 구글시트(또는 사이트)가 새 탭으로 열려요.</p>'+
-          '<p>• <b>미등록</b> 항목은 클릭하면 주소를 붙여넣는 창이 떠요. 나중에 ✏️로 수정할 수 있어요.</p>'+
+          '<p>• 링크가 없는 항목은 클릭하면 주소를 붙여넣는 창이 떠요. 나중에 ✏️로 수정할 수 있어요.</p>'+
           '<p>• ☆를 누르면 즐겨찾기에 추가돼요. 카드의 "전체보기"에서 모든 항목을 볼 수 있어요.</p>'+
-          '<p>• 등록한 링크·즐겨찾기는 이 브라우저에 저장돼요. 다른 PC에서 쓰려면 링크를 내보내기 → 가져오기 하세요.</p>'+
-          '<div class="wp-help-btns"><button class="wp-btn" onclick="window.workExport()">📋 링크 내보내기</button><button class="wp-btn" onclick="window.workImport()">📥 가져오기</button></div>'+
-          '<p style="color:#7c93ad;">현재 링크 미등록 '+unreg+'개 / 전체 '+TOTAL+'개</p></div>';
+          '<p>• <b>나의 업무</b> 카드에서는 항목을 직접 추가·수정·삭제하고 ▲▼로 순서를 바꿀 수 있어요.</p>'+
+          '<p>• 나의 업무·즐겨찾기·화면에서 고친 링크는 이 브라우저에만 저장돼요. 다른 PC로 옮기려면 아래 버튼을 쓰세요. (나의 업무도 함께 담겨요)</p>'+
+          '<div class="wp-help-btns"><button class="wp-btn" onclick="window.workExport()">📋 내보내기(백업)</button><button class="wp-btn" onclick="window.workImport()">📥 가져오기</button></div>'+
+          '<p style="color:#7c93ad;">링크 없는 항목 '+unreg+'개 / 전체 '+keys.length+'개</p></div>';
       }
       document.getElementById('workModalTitle').textContent=title;
       document.getElementById('workModalBody').innerHTML=body;
       m.style.display='flex';
+      if(modal.type==='myedit') setTimeout(()=>{ const e=document.getElementById('wpMyName'); if(e) e.focus(); },0);
     }
     const openModal=(o)=>{ modal=o; renderModal(); };
     window.workShowAll=sid=>openModal({type:'all',sid:sid});
@@ -5469,17 +5503,43 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.workShowRecent=()=>openModal({type:'recent'});
     window.workShowHelp=()=>openModal({type:'help'});
     window.workCloseModal=function(){ modal=null; renderModal(); };
-    window.workToggleUnreg=function(){ writeJson(HIDE_KEY,!hideUnreg()); window.renderWorkPage(); };
     window.workClearSearch=function(){ const i=document.getElementById('workSearch'); if(i){ i.value=''; i.focus(); } window.renderWorkPage(); };
     if(!window.__workEscBound){ window.__workEscBound=true; document.addEventListener('keydown',e=>{ if(e.key==='Escape') window.workCloseModal(); }); }
+
+    // ---- 나의 업무: 추가 / 수정 / 삭제 / 순서 ----
+    window.workMyEdit=function(id){ openModal({type:'myedit',id:id||''}); };
+    window.workMySave=function(){
+      const nm=((document.getElementById('wpMyName')||{}).value||'').trim();
+      let url=((document.getElementById('wpMyUrl')||{}).value||'').trim();
+      if(!nm){ alert('업무 이름을 입력해 주세요.'); return; }
+      if(url&&!/^[a-z][a-z0-9+.-]*:/i.test(url)) url='https://'+url;
+      if(url&&!/^https?:\/\//i.test(url)){ alert('주소는 https:// 로 시작해야 해요.'); return; }
+      const list=myList(); const id=(modal&&modal.id)||'';
+      if(id){ const it=list.find(x=>'my-'+x.k===id); if(it){ it.name=nm; it.url=url; } }
+      else list.push({k:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:nm,url:url});
+      saveMy(list); window.workCloseModal(); window.renderWorkPage();
+    };
+    window.workMyDelete=function(id){
+      const r=BY_ID[id]; if(!r) return;
+      if(!confirm('"'+r.name+'" 항목을 삭제할까요?')) return;
+      saveMy(myList().filter(x=>'my-'+x.k!==id));
+      if(modal&&modal.type==='myedit') window.workCloseModal();
+      window.renderWorkPage();
+    };
+    window.workMyMove=function(id,d){
+      const l=myList(); const i=l.findIndex(x=>'my-'+x.k===id); const j=i+d;
+      if(i<0||j<0||j>=l.length) return;
+      const t=l[i]; l[i]=l[j]; l[j]=t; saveMy(l); window.renderWorkPage();
+    };
 
     window.workFav=function(id){
       let a=idList(FAV_KEY); a=a.includes(id)?a.filter(x=>x!==id):a.concat([id]);
       writeJson(FAV_KEY,a); window.renderWorkPage();
     };
     window.workOpen=function(id){
+      const r=BY_ID[id]; if(!r) return;
       const url=getUrl(id);
-      if(!url){ window.workEdit(id); return; }
+      if(!url){ if(r.sec.mine) window.workMyEdit(id); else window.workEdit(id); return; }
       writeJson(REC_KEY,[id].concat(idList(REC_KEY).filter(x=>x!==id)).slice(0,10));
       if(url.indexOf('internal:')===0){ window.workCloseModal(); window.switchPage(url.slice(9)); return; }
       window.open(url,'_blank','noopener');
@@ -5492,16 +5552,21 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const sv=loadSaved(); sv[id]=val; saveSaved(sv); window.renderWorkPage();
     };
     window.workExport=function(){
-      const all={}; Object.assign(all,WORK_URLS_DEFAULT,loadSaved());
+      const all={}; Object.assign(all,WORK_URLS_DEFAULT,loadSaved()); all.__my=myList();
       const txt=JSON.stringify(all);
       if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(txt).then(()=>alert('등록된 링크를 복사했어요. 다른 PC에서 "가져오기"로 붙여넣으면 돼요.'),()=>prompt('아래 내용을 복사하세요',txt));
+        navigator.clipboard.writeText(txt).then(()=>alert('복사했어요. 다른 PC에서 "가져오기"로 붙여넣으면 돼요.'),()=>prompt('아래 내용을 복사하세요',txt));
       } else prompt('아래 내용을 복사하세요',txt);
     };
     window.workImport=function(){
-      const t=prompt('"링크 내보내기"로 복사한 내용을 붙여넣어 주세요.'); if(!t) return;
+      const t=prompt('"내보내기"로 복사한 내용을 붙여넣어 주세요.'); if(!t) return;
       try{ const o=JSON.parse(t); if(!o||typeof o!=='object'||Array.isArray(o)) throw 0;
-        const sv=loadSaved(); Object.keys(o).forEach(k=>{ if(typeof o[k]==='string') sv[k]=o[k]; }); saveSaved(sv); window.renderWorkPage();
+        const sv=loadSaved(); Object.keys(o).forEach(k=>{ if(typeof o[k]==='string') sv[k]=o[k]; }); saveSaved(sv);
+        if(Array.isArray(o.__my)){
+          const ok=o.__my.filter(x=>x&&/^[a-z0-9]+$/i.test(String(x.k))&&typeof x.name==='string').map(x=>({k:String(x.k),name:x.name.slice(0,60),url:(typeof x.url==='string'&&/^https?:\/\//i.test(x.url))?x.url:''}));
+          const cur=myList(); const have=new Set(cur.map(x=>x.k)); saveMy(cur.concat(ok.filter(x=>!have.has(x.k))));
+        }
+        window.renderWorkPage();
       }catch(e){ alert('형식이 올바르지 않아요.'); }
     };
   })();
