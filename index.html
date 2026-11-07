@@ -908,9 +908,15 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div class="live-toolbar">
         <label>필터</label>
         <select id="liveSmFilterType" class="live-input" onchange="window.switchLiveSmFilterType()">
-          <option value="month">월별</option>
+          <option value="day">일별</option>
+          <option value="month" selected>월별</option>
           <option value="period">기간별</option>
         </select>
+        <span id="liveSmDayWrap" style="display:none;">
+          <button class="live-refresh-btn" onclick="window.shiftLiveSmDay(-1)" title="전날">◀</button>
+          <input id="liveSmDay" type="date" class="live-input">
+          <button class="live-refresh-btn" onclick="window.shiftLiveSmDay(1)" title="다음날">▶</button>
+        </span>
         <span id="liveSmMonthWrap">
           <input id="liveSmMonth" type="month" class="live-input">
         </span>
@@ -6033,6 +6039,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
     if(sub==='summary'){
       // 매출정리 첫 진입 시 기본값: 월별 필터, 이번 달 선택 (조회는 사용자가 직접 눌러야 실행)
+      const dayInput = document.getElementById('liveSmDay');
+      if(dayInput && !dayInput.value) dayInput.value = ymdToInputDate_(todayYmd_());
       const monthInput = document.getElementById('liveSmMonth');
       const startInput = document.getElementById('liveSmStartDate');
       const endInput = document.getElementById('liveSmEndDate');
@@ -6082,8 +6090,25 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   // 매출정리: 월별/기간별 필터 UI 전환
   window.switchLiveSmFilterType = function(){
     const val = document.getElementById('liveSmFilterType').value;
+    document.getElementById('liveSmDayWrap').style.display = (val==='day') ? '' : 'none';
     document.getElementById('liveSmMonthWrap').style.display = (val==='month') ? '' : 'none';
     document.getElementById('liveSmPeriodWrap').style.display = (val==='period') ? '' : 'none';
+    if(val==='day'){
+      const dayInput = document.getElementById('liveSmDay');
+      if(dayInput && !dayInput.value) dayInput.value = ymdToInputDate_(todayYmd_());
+    }
+  };
+
+  // 매출정리 일별: ◀(전날) / ▶(다음날) 버튼 — 날짜를 옮기고 바로 조회 (오늘보다 뒤로는 못 감)
+  window.shiftLiveSmDay = function(delta){
+    const inp = document.getElementById('liveSmDay');
+    if(!inp.value) inp.value = ymdToInputDate_(todayYmd_());
+    const [y, m, d] = inp.value.split('-').map(Number);
+    const nd = new Date(y, m - 1, d + delta);
+    let ymd = nd.getFullYear() + String(nd.getMonth()+1).padStart(2,'0') + String(nd.getDate()).padStart(2,'0');
+    if(ymd > todayYmd_()) ymd = todayYmd_();
+    inp.value = ymdToInputDate_(ymd);
+    window.loadLiveSummary();
   };
 
   const LIVE_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','박영태 대리','강동우 사원','이현민 사원'];
@@ -6870,7 +6895,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   window.loadLiveSummary = async function(){
     const filterType = document.getElementById('liveSmFilterType').value;
     let start, end;
-    if(filterType === 'month'){
+    if(filterType === 'day'){
+      const dv = document.getElementById('liveSmDay').value;
+      if(!dv){ alert('조회할 날짜를 선택해주세요.'); return; }
+      start = end = inputDateToYmd_(dv); // 하루만 조회 (정리보기/채널별 상세 모두 이 하루 기준)
+    } else if(filterType === 'month'){
       const val = document.getElementById('liveSmMonth').value; // yyyy-mm
       if(!val){ alert('조회할 월을 선택해주세요.'); return; }
       const [y, m] = val.split('-').map(Number);
@@ -6900,7 +6929,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       const data = await fetchLiveDaily_(start, end);
       window.__liveSmData = data;
       document.getElementById('liveSmUpdatedAt').textContent =
-        'OKPOS 동기화: ' + formatSyncTime_(data.CACHED_AT) + ` (조회 기간: ${ymdToInputDate_(start)} ~ ${ymdToInputDate_(end)})`;
+        'OKPOS 동기화: ' + formatSyncTime_(data.CACHED_AT) + (start === end
+          ? ` (조회일: ${ymdToInputDate_(start)})`
+          : ` (조회 기간: ${ymdToInputDate_(start)} ~ ${ymdToInputDate_(end)})`);
       window.renderLiveSummaryTable();
     } catch(err){
       document.getElementById('liveSmTableWrap').innerHTML =
