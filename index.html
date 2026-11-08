@@ -930,7 +930,16 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         <select id="liveSmViewMode" class="live-input" onchange="window.switchLiveSmViewMode()">
           <option value="summary">정리보기</option>
           <option value="channel">채널별 상세 (배달만)</option>
+          <option value="daily">일자별 (날짜별 한 칸씩)</option>
         </select>
+        <span id="liveSmMetricWrap" style="display:none;">
+          <select id="liveSmMetric" class="live-input" onchange="window.renderLiveSummaryTable()" title="날짜 칸에 표시할 항목">
+            <option value="total">총매출</option>
+            <option value="pos">포스 매출</option>
+            <option value="del">배달 매출</option>
+            <option value="cnt">배달횟수</option>
+          </select>
+        </span>
         <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveSummaryExcel()">⬇️ 엑셀 다운로드</button>
         <input id="liveSmSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveSummaryTable()"
@@ -6943,6 +6952,9 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
   // 보기 모드(정리보기/채널별 상세) 전환은 재조회 없이 캐시된 데이터로 다시 그리기만 하면 됨
   window.switchLiveSmViewMode = function(){
+    const vm = document.getElementById('liveSmViewMode');
+    const mw = document.getElementById('liveSmMetricWrap');
+    if(mw) mw.style.display = (vm && vm.value === 'daily') ? '' : 'none';
     window.renderLiveSummaryTable();
   };
 
@@ -6997,7 +7009,22 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       }
       posAmt = totalAmt - delAmt;
 
-      return { code, name: info.name, manager, isError: false, posAmt, delAmt, delCnt, totalAmt, channels: channelAgg };
+      // 일자별 보기용: 날짜(ymd)별 총매출/배달매출/배달횟수 (배달 계산은 위와 같은 규칙)
+      const daily = {};
+      (info.days || []).forEach(day => {
+        const k = String(day.SDA_DT);
+        const o = daily[k] || (daily[k] = { total: 0, del: 0, cnt: 0 });
+        o.total += (day.SA_AMT_TTL || 0);
+        if(!hasChannelData) o.del += (day.SA_ON_AMT || 0);
+      });
+      if(hasChannelData){
+        Object.entries(info.channelDays || {}).forEach(([ymd, dayMap]) => {
+          const o = daily[ymd] || (daily[ymd] = { total: 0, del: 0, cnt: 0 });
+          Object.values(aggregateStoreChannels_({ [ymd]: dayMap })).forEach(v => { o.del += v.amount; o.cnt += v.cnt; });
+        });
+      }
+
+      return { code, name: info.name, manager, isError: false, posAmt, delAmt, delCnt, totalAmt, channels: channelAgg, daily };
     });
 
     livePopulateManagerSel('liveSmManagerSel', rows);
@@ -7014,6 +7041,106 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     }
 
     const st = window.__liveSmSortState;
+
+    if(viewMode === 'daily'){
+      // ── 일자별: 매장 × 날짜 (선택한 기간을 하루씩 나눠서 한 화면에) ──
+      const metricSel = document.getElementById('liveSmMetric');
+      const metric = metricSel ? metricSel.value : 'total';
+      const metricLabel = { total: '총매출', pos: '포스 매출', del: '배달 매출', cnt: '배달횟수' }[metric] || '총매출';
+      const valOf = (o) => !o ? 0 : (metric === 'pos' ? (o.total - o.del) : metric === 'del' ? o.del : metric === 'cnt' ? o.cnt : o.total);
+
+      // 조회 기간의 모든 날짜 (오늘 이후는 제외)
+      const rangeEnd = (data.END && data.END < todayYmd_()) ? data.END : todayYmd_();
+      const dates = [];
+      for(let i = 0; i < 400; i++){
+        const dt = new Date(+data.START.slice(0,4), +data.START.slice(4,6) - 1, +data.START.slice(6,8) + i);
+        const ymd = dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0') + String(dt.getDate()).padStart(2,'0');
+        if(ymd > rangeEnd) break;
+        dates.push(ymd);
+      }
+      if(dates.length > 62){
+        wrap.innerHTML = `<div class="live-empty">일자별 보기는 최대 62일까지 볼 수 있어요. (지금 조회 기간: ${dates.length}일) 기간을 줄여서 다시 조회해주세요.</div>`;
+        return;
+      }
+      const WD = ['일','월','화','수','목','금','토'];
+      const dayInfo = dates.map(ymd => {
+        const wd = new Date(+ymd.slice(0,4), +ymd.slice(4,6) - 1, +ymd.slice(6,8)).getDay();
+        return { ymd, label: `${ymd.slice(4,6)}/${ymd.slice(6,8)}(${WD[wd]})`, wknd: (wd === 0 || wd === 6) };
+      });
+
+      rows.forEach(r => {
+        r.dv = {}; r.dvTotal = 0;
+        if(r.isError) return;
+        dates.forEach(ymd => { const v = valOf(r.daily && r.daily[ymd]); r.dv[ymd] = v; r.dvTotal += v; });
+      });
+
+      let sortKey = st.key; // 정리보기 전용 키(포스/배달 등)는 합계로 대체
+      if(!(sortKey === 'name' || sortKey === 'manager' || sortKey === 'total' || (sortKey || '').indexOf('d:') === 0)) sortKey = 'total';
+      rows.sort((a, b) => {
+        if(sortKey === 'total') return st.dir * ((a.dvTotal||0) - (b.dvTotal||0));
+        if(sortKey.indexOf('d:') === 0){ const k = sortKey.slice(2); return st.dir * (((a.dv && a.dv[k])||0) - ((b.dv && b.dv[k])||0)); }
+        return st.dir * liveSmSortCompare_(a, b, sortKey);
+      });
+      liveTenureSortInPlace_(rows);
+
+      let sumAll = 0, errorCount = 0;
+      const sumByDay = {}; dates.forEach(d => sumByDay[d] = 0);
+      rows.forEach(r => {
+        if(r.isError){ errorCount++; return; }
+        sumAll += r.dvTotal;
+        dates.forEach(d => { sumByDay[d] += r.dv[d]; });
+      });
+
+      // ── 엑셀 다운로드용 캐시 (화면과 동일) ──
+      window.__liveExportCache = window.__liveExportCache || {};
+      window.__liveExportCache.summary = {
+        header: ['매장명', '담당자', ...dayInfo.map(d => d.label), '합계'],
+        rows: [
+          ['전체 합계', '', ...dates.map(d => sumByDay[d]), sumAll],
+          ...rows.filter(r => !r.isError).map(r => [r.name, r.manager || '-', ...dates.map(d => r.dv[d]), r.dvTotal])
+        ]
+      };
+
+      const sortArrow = (key) => sortKey === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+      const sortTh = (key, label, align = 'right', cls = '') =>
+        `<th${cls ? ` class="${cls}"` : ''} style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.liveSmSortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
+      const cell = (v, wknd) => `<td class="${wknd ? 'wknd' : ''}${v ? '' : ' zero'}">${v ? v.toLocaleString() : '-'}</td>`;
+
+      const bodyRows = rows.map(r => {
+        if(r.isError){
+          return `<tr class="err-row"><td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
+            <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+            <td colspan="${dates.length + 1}" style="text-align:left;">⚠ 조회 실패 · ${r.error}</td></tr>`;
+        }
+        return `<tr>
+          <td style="text-align:center;">${r.name}${liveTenureTag_(r.name)}</td>
+          <td style="text-align:center;color:#8fb8dd;">${r.manager || '-'}</td>
+          ${dayInfo.map(d => cell(r.dv[d.ymd], d.wknd)).join('')}
+          <td class="grand-total">${r.dvTotal.toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+
+      wrap.innerHTML = `
+        <div class="live-table-card">
+          <div style="padding:8px 12px;font-size:11px;color:#6b8fa8;">표시 항목: <b style="color:#8fb8dd;">${metricLabel}</b> · ${dates.length}일 (${dayInfo[0] ? dayInfo[0].label : ''} ~ ${dayInfo.length ? dayInfo[dayInfo.length-1].label : ''})</div>
+          <div class="live-table-scroll">
+            <table class="live-table">
+              <thead><tr>
+                ${sortTh('name', `매장명 (${rows.length}개${errorCount ? `, 조회실패 ${errorCount}개 제외` : ''})`, 'center')}${sortTh('manager','담당자','center')}${dayInfo.map(d => sortTh('d:' + d.ymd, d.label, 'right', d.wknd ? 'wknd' : '')).join('')}${sortTh('total','합계')}
+              </tr></thead>
+              <tbody>
+                <tr class="total-row">
+                  <td>전체 합계</td><td></td>
+                  ${dayInfo.map(d => `<td>${sumByDay[d.ymd].toLocaleString()}</td>`).join('')}
+                  <td>${sumAll.toLocaleString()}</td>
+                </tr>
+                ${bodyRows}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      return;
+    }
 
     if(viewMode === 'channel'){
       // ── 채널별 상세: 배달 채널만 컬럼화 (배민/배민1/쿠팡이츠/요기요/땡겨요 우선, 그 외는 가나다순) ──
