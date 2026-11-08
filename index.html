@@ -934,10 +934,10 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
         </select>
         <span id="liveSmMetricWrap" style="display:none;">
           <select id="liveSmMetric" class="live-input" onchange="window.renderLiveSummaryTable()" title="날짜 칸에 표시할 항목">
+            <option value="del" selected>배달 매출</option>
+            <option value="cnt">배달횟수</option>
             <option value="total">총매출</option>
             <option value="pos">포스 매출</option>
-            <option value="del">배달 매출</option>
-            <option value="cnt">배달횟수</option>
           </select>
         </span>
         <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
@@ -7045,8 +7045,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     if(viewMode === 'daily'){
       // ── 일자별: 매장 × 날짜 (선택한 기간을 하루씩 나눠서 한 화면에) ──
       const metricSel = document.getElementById('liveSmMetric');
-      const metric = metricSel ? metricSel.value : 'total';
-      const metricLabel = { total: '총매출', pos: '포스 매출', del: '배달 매출', cnt: '배달횟수' }[metric] || '총매출';
+      const metric = metricSel ? metricSel.value : 'del';
+      const metricLabel = { total: '총매출', pos: '포스 매출', del: '배달 매출', cnt: '배달횟수' }[metric] || '배달 매출';
       const valOf = (o) => !o ? 0 : (metric === 'pos' ? (o.total - o.del) : metric === 'del' ? o.del : metric === 'cnt' ? o.cnt : o.total);
 
       // 조회 기간의 모든 날짜 (오늘 이후는 제외)
