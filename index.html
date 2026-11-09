@@ -2242,7 +2242,7 @@ function setFilter(f){
 }
 
 function renderTabs(){
-  const ORDER=['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+  const ORDER=['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원']; // 직급순
   const existing=new Set(ALL.map(b=>b.manager));
   const sorted=ORDER.filter(m=>existing.has(m));
   const others=[...existing].filter(m=>!ORDER.includes(m)).sort();
@@ -4895,7 +4895,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
   function mkPopulateManagerSel(){
     const sel = document.getElementById('mkManagerSel');
     if(!sel || sel.__populated) return;
-    const ORDER=['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+    const ORDER=['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
     const present = new Set(MARKETING_DATA_RAW.map(s=>mkStoreManager(s[0])).filter(Boolean));
     const sorted = [...ORDER.filter(m=>present.has(m)), ...[...present].filter(m=>!ORDER.includes(m)).sort()];
     sorted.forEach(m=>{
@@ -6120,7 +6120,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     window.loadLiveSummary();
   };
 
-  const LIVE_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+  const LIVE_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
   // ── LIVE 매출: 운영기간(개월수) 표시/필터 (모든 서브탭 공통) ──
   let __liveTenureLookup = null;
   function liveTenureNorm_(n){ return String(n||'').replace(/^복호두\s*/,'').replace(/\s+/g,'').toLowerCase(); }
@@ -9057,7 +9057,7 @@ function isLivePrExcluded_(name){
     return `${y}-${m}-${day}`;
   }
 
-  const ROYALTY_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+  const ROYALTY_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
   function royaltyPopulateManagerSel(){
     const sel = document.getElementById('royaltyManagerSel');
     if(!sel || sel.__populated) return;
@@ -9824,7 +9824,7 @@ function cannibalRowMatchesManager(row) {
   if (cannibalSelectedStores.size > 0 && !cannibalSelectedStores.has(row['매장'])) return false;
   return true;
 }
-const CANNIBAL_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+const CANNIBAL_MANAGER_ORDER = ['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
 function cannibalPopulateManagerSel() {
   const sel = document.getElementById('cannibalManagerSel');
   if (!sel || sel.__populated) return;
@@ -13930,7 +13930,7 @@ let menuStoreSearchQuery = ''; // 담당자별 탭 매장명 검색
 function renderMenuManagerTabs() {
   const el = document.getElementById('menuManagerTabs');
   if (!el) return;
-  const ORDER = ['전체','김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+  const ORDER = ['전체','김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
   const mgrColors = {
     '김태환 과장':'#22c55e','임도형 과장':'#ef4444',
     '이중섭 대리':'#facc15','신아름 주임':'#3b82f6',
@@ -15155,7 +15155,7 @@ window.addEventListener('DOMContentLoaded', () => {
 ============================================================= -->
 <script>
 (function(){
-  const CHAT_MANAGERS = ['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+  const CHAT_MANAGERS = ['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
   // "3월은?"처럼 주어(매장/담당자/지역) 없는 후속 질문에서 직전 대화 주제를 재사용하기 위한 맥락 저장
   // type: 'store' | 'manager' | 'region'
   let lastContext = null;
@@ -16280,7 +16280,7 @@ body{background:#0a1628;color:#fff;font-family:'Pretendard','Noto Sans KR',sans-
   }
 
   function renderRtTabs(){
-    const ORDER=['김태환 과장','임도형 과장','이중섭 대리','신아름 주임','강동우 사원','이현민 주임'];
+    const ORDER=['김태환 과장','임도형 과장','이중섭 대리','이현민 주임','신아름 주임','강동우 사원'];
     const mgrmap = window.__RT_MGRMAP || {};
     const existing = new Set(Object.values(mgrmap).map(v=>v.manager).filter(Boolean));
     const sorted = ORDER.filter(m=>existing.has(m));
