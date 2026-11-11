@@ -1,1 +1,1 @@
-{"DATE":"20261112","ORDERS":[],"updatedAt":"2026-11-11T20:16:29.080Z","lastRunFailedCount":0}
+{"DATE":"20261112","ORDERS":[{"STR_NM":"수성범어점","SA_NO":101,"SA_DT":"2026-11-12 05:23:50","SA_DEL_MK":"L","SA_GET_AMT":49500,"SA_CASH_AMT":49500,"SA_CARD_AMT":0,"SA_DISCOUNT":0,"ITEMS":[{"CMDT_NM":"답례품(팥/앙버터)","SC_QTY":11,"SC_AMT_TTL":49500,"SC_FORM":"O","OPTION_GBN":"N"}]}],"updatedAt":"2026-11-11T21:21:35.226Z","lastRunFailedCount":0}
