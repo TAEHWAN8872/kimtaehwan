@@ -757,6 +757,8 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .bm-head{display:flex;gap:10px;align-items:flex-start;background:#12243a;border:0.5px solid #2a5a8a;border-radius:10px;padding:12px 14px;margin:4px 0 10px;font-size:14px;line-height:1.65;color:#e0f0ff;}
 .bm-head b{color:#fff;}
 .bm-hdot{flex:0 0 10px;height:10px;border-radius:50%;margin-top:7px;}
+
+.bm-pill{display:inline-block;font-size:9.5px;font-weight:700;color:#f0a04a;background:rgba(240,160,74,.15);border:0.5px solid rgba(240,160,74,.5);border-radius:4px;padding:0 4px;margin-left:2px;vertical-align:1px;}
 </style>
 </head>
 <body>
@@ -3552,21 +3554,25 @@ function openBranchModal(b){
   const v25list=(vals25||[]).filter(v=>v>0).sort((a,c)=>a-c);
   const med25=v25list.length?v25list[Math.floor(v25list.length/2)]:0;
   const spike=MONTHS.map((_,i)=>!!(vals25&&vals25[i]&&med25&&vals25[i]>=med25*1.4));
-  // 작년 오픈 초기(첫 3개월): 매출이 아직 자리 잡기 전이라 전년비가 과하게 높게 나옴
+  // 작년 오픈 초기: 오픈 후 3개월 안에서 '작년 평소 매출의 70% 미만'인 달만 (오픈 달처럼 며칠치만 잡힌 달)
+  //  → 이런 달과 비교하면 전년비가 과하게 높게 나오므로 진단·누적 비교에서 제외
   const open25=vals25?vals25.findIndex(v=>v>0):-1;
-  const lowBase=MONTHS.map((_,i)=>open25>0&&i>=open25&&i<open25+3&&!!(vals25&&vals25[i]));
+  const lowBase=MONTHS.map((_,i)=>open25>0&&i>=open25&&i<open25+3&&!!(vals25&&vals25[i])&&med25>0&&vals25[i]<med25*0.7);
 
   // ── ① 요약 지표 ──
-  let y26=0,y25=0; for(let i=0;i<=lastI;i++){ if(vals26[i]&&vals25&&vals25[i]&&!lowBase[i]){ y26+=vals26[i]; y25+=vals25[i]; } } // 작년 오픈 초기 달은 비교에서 제외
+  let y26=0,y25=0; const cmpMs=[]; for(let i=0;i<=lastI;i++){ if(vals26[i]&&vals25&&vals25[i]&&!lowBase[i]){ y26+=vals26[i]; y25+=vals25[i]; cmpMs.push(i); } } // 작년 오픈 초기 달은 비교에서 제외
+  const nAct=vals26.slice(0,lastI+1).filter(v=>v).length;
+  // 비교한 달이 일부뿐이면 어느 달 기준인지 명시 (예: 9·10월 기준)
+  const cmpNote=cmpMs.length&&cmpMs.length<nAct?`${cmpMs.map(i=>MONTHS[i].replace('월','')).join('·')}월 기준`:'';
   const ytd=y25>0?(y26-y25)/y25*100:null;
   const ytdAll=vals26.slice(0,lastI+1).reduce((s,v)=>s+(v||0),0);
-  let gOk=0,gN=0; for(let i=0;i<=lastI;i++){ if(goals&&goals[i]&&vals26[i]){ gN++; if(vals26[i]>=goals[i]) gOk++; } }
+  let gOk=0,gN=0; for(let i=0;i<=lastI;i++){ if(goals&&goals[i]&&vals26[i]&&!lowBase[i]){ gN++; if(vals26[i]>=goals[i]) gOk++; } }
   const rankArr=ALL.map(st=>st.months[lastI]||0).filter(v=>v>0).sort((a,c)=>c-a);
   const rank=rankArr.indexOf(b.months[lastI])+1;
   const avgRatio=avgOf(ratio);
   const firstI=active26[0].i;
   document.getElementById('modalKpis').innerHTML=`
-    <div class="bm-k"><div class="bm-kl">${MONTHS[firstI]}~${MONTHS[lastI]} 누적</div><div class="bm-kv">${fmtD(ytdAll)}</div><div class="bm-ks ${pCls(ytd)}">전년 같은 기간 ${pTxt(ytd)}</div></div>
+    <div class="bm-k"><div class="bm-kl">${MONTHS[firstI]}~${MONTHS[lastI]} 누적</div><div class="bm-kv">${fmtD(ytdAll)}</div><div class="bm-ks ${pCls(ytd)}">전년 같은 기간 ${pTxt(ytd)}${cmpNote?` <span style="color:#8aa6bf;">(${cmpNote})</span>`:''}</div></div>
     <div class="bm-k"><div class="bm-kl">${MONTHS[lastI]} 매출</div><div class="bm-kv">${fmtD(vals26[lastI])}</div><div class="bm-ks ${pCls(sYoy[lastI])}">전년 ${pTxt(sYoy[lastI])}${spike[lastI]?' <span class="bm-warn" title="작년 이 달이 평소보다 매우 높았어요">⚠ 작년 특수</span>':''}</div></div>
     <div class="bm-k"><div class="bm-kl">목표 달성 (전년+5%)</div><div class="bm-kv">${gOk}<small> / ${gN}개월</small></div><div class="bm-bar"><i style="width:${gN?Math.round(gOk/gN*100):0}%"></i></div></div>
     <div class="bm-k"><div class="bm-kl">${MONTHS[lastI]} 전체 순위</div><div class="bm-kv">${rank||'-'}<small>위 / ${rankArr.length}</small></div><div class="bm-ks">상위 ${rank?Math.max(1,Math.round(rank/rankArr.length*100)):'-'}%</div></div>
@@ -3574,7 +3580,7 @@ function openBranchModal(b){
 
   // ── ② 차트: 0부터 시작, 목표 달성한 달만 초록, 복호두 매장 평균선 ──
   if(modalChartInst){modalChartInst.destroy();modalChartInst=null;}
-  const barColors=vals26.map((v,i)=>(v&&goals&&goals[i]&&v>=goals[i])?'rgba(61,184,122,0.85)':'rgba(55,138,221,0.8)');
+  const barColors=vals26.map((v,i)=>(v&&goals&&goals[i]&&v>=goals[i]&&!lowBase[i])?'rgba(61,184,122,0.85)':'rgba(55,138,221,0.8)');
   const datasets=[
     {type:'bar',label:'26년 (초록=목표 달성)',data:vals26,backgroundColor:barColors,borderRadius:4,order:4},
   ];
@@ -3611,7 +3617,7 @@ function openBranchModal(b){
   // ── ③ 매출 진단 + 추천 액션 (규칙 기반) ──
   const diag=[], acts=[];
   const tone=r=>r==null?'gray':r>=3?'green':r<=-3?'red':'gray';
-  if(ytd!=null) diag.push({t:tone(ytd), h:'올해 누적', x:`${MONTHS[firstI]}~${MONTHS[lastI]} 누적 매출이 전년 같은 기간보다 <b>${pTxt(ytd)}</b>`});
+  if(ytd!=null) diag.push({t:tone(ytd), h:'올해 누적', x:cmpNote?`작년과 비교 가능한 달(${cmpNote}) 매출이 전년보다 <b>${pTxt(ytd)}</b>`:`${MONTHS[firstI]}~${MONTHS[lastI]} 누적 매출이 전년 같은 기간보다 <b>${pTxt(ytd)}</b>`});
   // 브랜드 대비: 최근 3개월 전년비 격차
   const gapIdx=[]; for(let i=lastI;i>=0&&gapIdx.length<3;i--){ if(sYoy[i]!=null&&brand.yoy[i]!=null&&!spike[i]&&!lowBase[i]) gapIdx.push(i); }
   let gap=null;
@@ -3645,7 +3651,7 @@ function openBranchModal(b){
   // 작년 오픈 초기 달
   const lowMs=MONTHS.map((m,i)=>lowBase[i]&&i<=lastI&&vals26[i]?i:-1).filter(i=>i>=0);
   if(lowMs.length){
-    diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>MONTHS[i]).join('·')}은 오픈 초기라 매출이 낮아서, 그 달의 전년비는 <b>실제보다 좋아 보여요</b> (진단에서 제외)`});
+    diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>`${MONTHS[i]}(${fmtD(vals25[i])})`).join('·')}은 오픈 직후라 매출이 낮아서, 그 달의 전년비(${lowMs.map(i=>pTxt(sYoy[i])).join('·')})는 <b>실제보다 좋아 보여요</b> → 진단·누적 비교에서 제외했어요`});
   }
   // 목표 달성
   const gLast=goals&&goals[lastI], gLeft=(gLast&&vals26[lastI]<gLast)?gLast-vals26[lastI]:0;
@@ -3673,7 +3679,7 @@ function openBranchModal(b){
   let bc=0,bp=0; for(let i=0;i<=lastI;i++){ if(vals26[i]&&vals25&&vals25[i]&&!lowBase[i]&&brand.yoy[i]!=null){ ALL.forEach(st=>{const v=st.months[i]||0,q=get25(st.name,i); if(v>0&&q>0){bc+=v;bp+=q;}}); } }
   const bYtd=bp>0?(bc-bp)/bp*100:null;
   const S=[];
-  if(ytd!=null) S.push(`올해 누적 매출은 전년 대비 <b>${pTxt(ytd)}</b>${bYtd!=null?` (복호두 전체 ${pTxt(bYtd)})`:''}.`);
+  if(ytd!=null) S.push(`${cmpNote?`작년과 비교 가능한 달(${cmpNote}) 매출은`:'올해 누적 매출은'} 전년 대비 <b>${pTxt(ytd)}</b>${bYtd!=null?` (복호두 전체 ${pTxt(bYtd)})`:''}.`);
   else {
     // 작년과 비교할 수 없는 매장: 복호두 매장 평균과 비교
     const bAvg=brand.avg[lastI], vs=bAvg?(vals26[lastI]-bAvg)/bAvg*100:null;
@@ -3711,13 +3717,13 @@ function openBranchModal(b){
     <div class="bm-tw"><table class="bm-t">
       <thead><tr><th></th>${MONTHS.map((m,i)=>`<th class="${i===lastI?'cur':''}">${m}</th>`).join('')}</tr></thead>
       <tbody>
-        <tr><th>26년</th>${MONTHS.map((_,i)=>`<td class="v26${goals&&goals[i]&&vals26[i]>=goals[i]?' hit':''}">${num(vals26[i])}</td>`).join('')}</tr>
-        <tr><th>25년</th>${MONTHS.map((_,i)=>`<td class="v25">${num(vals25&&vals25[i])}${spike[i]?' <span class="bm-warn">⚠</span>':lowBase[i]?' <span class="bm-warn" title="작년 오픈 초기">초</span>':''}</td>`).join('')}</tr>
-        <tr><th>전년비</th>${MONTHS.map((_,i)=>cellYoy(sYoy[i])).join('')}</tr>
+        <tr><th>26년</th>${MONTHS.map((_,i)=>`<td class="v26${goals&&goals[i]&&vals26[i]>=goals[i]&&!lowBase[i]?' hit':''}">${num(vals26[i])}</td>`).join('')}</tr>
+        <tr><th>25년</th>${MONTHS.map((_,i)=>`<td class="v25">${num(vals25&&vals25[i])}${spike[i]?' <span class="bm-warn">⚠</span>':lowBase[i]?` <span class="bm-pill" title="작년 ${i===open25?'오픈한 달이라 며칠치만 잡힌 매출':'오픈 초기라 매출이 낮았던 달'} → 전년비 비교에서 제외">${i===open25?'오픈월':'오픈초기'}</span>`:''}</td>`).join('')}</tr>
+        <tr><th>전년비</th>${MONTHS.map((_,i)=>lowBase[i]?`<td class="na" title="오픈 직후 달과 비교 → 제외" style="text-decoration:line-through;">${pTxt(sYoy[i])}</td>`:cellYoy(sYoy[i])).join('')}</tr>
         <tr><th>복호두 전체</th>${MONTHS.map((_,i)=>`<td class="bm-brand">${vals26[i]?pTxt(brand.yoy[i]):'-'}</td>`).join('')}</tr>
         ${logData?`<tr><th>물류비중</th>${MONTHS.map((_,i)=>`<td style="color:${ratio[i]==null?'#5f7d95':getLogRatioColor(ratio[i])};font-weight:600;">${ratio[i]==null?'-':ratio[i].toFixed(1)+'%'}</td>`).join('')}</tr>`:''}
       </tbody></table></div>
-    <div class="bm-tn">26년 칸이 초록 글씨 = 목표 달성 · ⚠ = 작년 특수 달(평소의 1.4배 이상) · 초 = 작년 오픈 초기 3개월</div>`;
+    <div class="bm-tn">26년 칸이 초록 글씨 = 목표 달성 · ⚠ = 작년 특수 달(평소의 1.4배 이상) · <span class="bm-pill">오픈월</span> = 작년 오픈 직후라 매출이 낮았던 달 (전년비 비교에서 제외)</div>`;
 
   // ── 매장별 AI 인사이트 (물류 매출 섹션 바로 아래) ─────────────────────
   const insightEl = document.getElementById('modalStoreInsight');
