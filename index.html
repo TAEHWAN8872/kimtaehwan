@@ -2399,24 +2399,18 @@ function get25OpenIdx(name){
   const d = ALL25[name]; if(!d) return -1;
   const f = d.findIndex(v=>v>0); return f>0 ? f : -1;
 }
-// 25년 오픈 초기로 비교에서 뺄 달인지: 오픈월은 항상 + 그 뒤 2개월 중 작년 평소(중앙값)의 70% 미만인 달
-// (매장 상세 창의 '오픈월/오픈초기' 표시와 같은 기준)
+// 25년 오픈월이라 비교에서 뺄 달인지 (매장 상세 창의 '오픈월' 표시와 같은 기준)
 function is25Excluded(name, i){
-  const o=get25OpenIdx(name); if(o<0||i<o) return false;
-  if(i===o) return true;
-  if(i>o+2) return false;
-  const d=ALL25[name]||[]; const v=d.filter(x=>x>0).sort((a,c)=>a-c); if(!v.length) return false;
-  const med=v[Math.floor(v.length/2)];
-  return (d[i]||0)>0 && d[i]<med*0.7;
+  return i===get25OpenIdx(name);
 }
-// 전년 '비교용' 매출: 25년 오픈월·오픈초기는 0으로 취급 → 전년비·목표 계산에서 자동 제외 (합계 표시는 get25 그대로)
+// 전년 '비교용' 매출: 25년 오픈월은 0으로 취급 → 전년비·목표 계산에서 자동 제외 (합계 표시는 get25 그대로)
 function get25Cmp(name, monthIdx){
   return is25Excluded(name, monthIdx) ? 0 : get25(name, monthIdx);
 }
 function get25Avg(name){
   const d = ALL25[name];
   if(!d) return 0;
-  const vals = d.filter((v,i)=>v>0 && !is25Excluded(name,i)); // 25년 오픈월·오픈초기는 평균에서 제외
+  const vals = d.filter((v,i)=>v>0 && !is25Excluded(name,i)); // 25년 오픈월은 평균에서 제외
   return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length) : 0;
 }
 function get25Val(name, lastIdx){
@@ -3597,10 +3591,10 @@ function openBranchModal(b){
   const v25list=(vals25||[]).filter(v=>v>0).sort((a,c)=>a-c);
   const med25=v25list.length?v25list[Math.floor(v25list.length/2)]:0;
   const spike=MONTHS.map((_,i)=>!!(vals25&&vals25[i]&&med25&&vals25[i]>=med25*1.4));
-  // 작년 오픈 초기: 오픈월(첫 매출 달)은 항상 + 그 뒤 2개월 중 '작년 평소 매출의 70% 미만'인 달
+  // 작년 오픈월(첫 매출 달): 영업일이 짧거나 오픈 이벤트가 있어 비교에서 제외
   //  → 이런 달과 비교하면 전년비가 과하게 높게 나오므로 진단·누적 비교에서 제외
   const open25=vals25?vals25.findIndex(v=>v>0):-1;
-  const lowBase=MONTHS.map((_,i)=>open25>0&&!!(vals25&&vals25[i])&&(i===open25||(i>open25&&i<open25+3&&med25>0&&vals25[i]<med25*0.7)));
+  const lowBase=MONTHS.map((_,i)=>open25>0&&i===open25&&!!(vals25&&vals25[i]));
   // 26년 오픈 정보: 오픈 첫 달(part26)은 추세·평균에서, 재오픈 매장은 전년 비교 전체에서 제외
   const oi=getOpenInfo(b);
   const part26=MONTHS.map((_,i)=>i===oi.partial);
@@ -3653,7 +3647,7 @@ function openBranchModal(b){
           afterBody:t=>{ const i=t[0].dataIndex; const out=[];
             if(sYoy[i]!=null) out.push(`전년비 ${pTxt(sYoy[i])} (복호두 전체 ${pTxt(brand.yoy[i])})`);
             if(spike[i]) out.push('⚠ 작년 이 달이 평소보다 매우 높았어요');
-            if(lowBase[i]) out.push('작년 오픈 초기라 전년비가 높게 나와요');
+            if(lowBase[i]) out.push('작년 오픈월 → 전년비 비교에서 제외');
             if(part26[i]) out.push('오픈월 → 추세·평균에서 제외');
             if(oi.reopened&&vals26[i]) out.push('재오픈 매장: 작년은 이전 운영 기준이라 전년비 참고만');
             if(ratio[i]!=null) out.push(`물류비중 ${ratio[i].toFixed(1)}%`);
@@ -3700,10 +3694,10 @@ function openBranchModal(b){
     diag.push({t:'amber',h:'비교 주의',x:`작년 ${spikeMs.map(i=>`${MONTHS[i]}(${fmtD(vals25[i])})`).join(', ')}이 작년 평소의 ${(Math.max(...spikeMs.map(i=>vals25[i]))/med25).toFixed(1)}배예요. 그 달의 전년비 하락은 <b>작년 특수 영향</b>이 커서 실제보다 나빠 보여요`});
     acts.push(`작년 ${spikeMs.map(i=>MONTHS[i]).join('·')}에 단체주문·행사가 있었는지 점주에게 확인 → 올해도 재현 가능한지 검토`);
   }
-  // 작년 오픈 초기 달
+  // 작년 오픈월
   const lowMs=MONTHS.map((m,i)=>lowBase[i]&&i<=lastI&&vals26[i]?i:-1).filter(i=>i>=0);
   if(lowMs.length){
-    diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>`${MONTHS[i]}(${fmtD(vals25[i])})`).join('·')}은 ${lowMs.length>1?'오픈 초기':'오픈월'}이라 정상 달과 비교하기 어려워서 전년비(${lowMs.map(i=>pTxt(sYoy[i])).join('·')})는 <b>진단·누적·목표 비교에서 제외</b>했어요`});
+    diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>`${MONTHS[i]}(${fmtD(vals25[i])})`).join('·')}은 오픈월이라 정상 달과 비교하기 어려워서 전년비(${lowMs.map(i=>pTxt(sYoy[i])).join('·')})는 <b>진단·누적·목표 비교에서 제외</b>했어요`});
   }
   // ── 26년 오픈 / 재오픈 매장 ──
   let newAvg=null,newVsBrand=null;
@@ -3800,12 +3794,12 @@ function openBranchModal(b){
       <thead><tr><th></th>${MONTHS.map((m,i)=>`<th class="${i===lastI?'cur':''}">${m}</th>`).join('')}</tr></thead>
       <tbody>
         <tr><th>26년</th>${MONTHS.map((_,i)=>`<td class="v26${goals&&goals[i]&&vals26[i]>=goals[i]&&!excl[i]?' hit':''}${part26[i]?' na':''}">${num(vals26[i])}${part26[i]?' <span class="bm-pill bm-pill-b" title="오픈월 → 추세·평균에서 제외">오픈월</span>':''}</td>`).join('')}</tr>
-        <tr><th>25년</th>${MONTHS.map((_,i)=>`<td class="v25">${num(vals25&&vals25[i])}${spike[i]?' <span class="bm-warn">⚠</span>':lowBase[i]?` <span class="bm-pill" title="작년 ${i===open25?'오픈한 달이라 며칠치만 잡힌 매출':'오픈 초기라 매출이 낮았던 달'} → 전년비 비교에서 제외">${i===open25?'오픈월':'오픈초기'}</span>`:''}</td>`).join('')}</tr>
-        <tr><th>전년비</th>${MONTHS.map((_,i)=>(excl[i]&&sYoy[i]!=null)?`<td class="na" title="${oi.reopened?'재오픈 매장: 작년은 이전 운영 기준':'오픈 직후 달과 비교'} → 제외" style="text-decoration:line-through;">${pTxt(sYoy[i])}</td>`:cellYoy(sYoy[i])).join('')}</tr>
+        <tr><th>25년</th>${MONTHS.map((_,i)=>`<td class="v25">${num(vals25&&vals25[i])}${spike[i]?' <span class="bm-warn">⚠</span>':lowBase[i]?` <span class="bm-pill" title="작년 오픈월 → 전년비 비교에서 제외">오픈월</span>`:''}</td>`).join('')}</tr>
+        <tr><th>전년비</th>${MONTHS.map((_,i)=>(excl[i]&&sYoy[i]!=null)?`<td class="na" title="${oi.reopened?'재오픈 매장: 작년은 이전 운영 기준':'작년 오픈월과 비교'} → 제외" style="text-decoration:line-through;">${pTxt(sYoy[i])}</td>`:cellYoy(sYoy[i])).join('')}</tr>
         <tr><th>복호두 전체</th>${MONTHS.map((_,i)=>`<td class="bm-brand">${vals26[i]?pTxt(brand.yoy[i]):'-'}</td>`).join('')}</tr>
         ${logData?`<tr><th>물류비중</th>${MONTHS.map((_,i)=>`<td style="color:${ratio[i]==null||part26[i]?'#5f7d95':getLogRatioColor(ratio[i])};font-weight:600;" ${part26[i]?'title="오픈월: 초기 재고 입고 포함 → 평균에서 제외"':''}>${ratio[i]==null?'-':ratio[i].toFixed(1)+'%'}</td>`).join('')}</tr>`:''}
       </tbody></table></div>
-    <div class="bm-tn">26년 칸이 초록 글씨 = 목표 달성 · ⚠ = 작년 특수 달(평소의 1.4배 이상) · <span class="bm-pill">오픈월</span>(25년 줄) = 작년 오픈 직후 달 · <span class="bm-pill bm-pill-b">오픈월</span>(26년 줄) = 올해 오픈월 → 추세·평균에서 제외</div>`;
+    <div class="bm-tn">26년 칸이 초록 글씨 = 목표 달성 · ⚠ = 작년 특수 달(평소의 1.4배 이상) · <span class="bm-pill">오픈월</span>(25년 줄) = 작년 오픈월 · <span class="bm-pill bm-pill-b">오픈월</span>(26년 줄) = 올해 오픈월 → 추세·평균에서 제외</div>`;
 
   // ── 매장별 AI 인사이트 (물류 매출 섹션 바로 아래) ─────────────────────
   const insightEl = document.getElementById('modalStoreInsight');
