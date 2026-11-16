@@ -711,6 +711,48 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
   .hero-val{font-size:26px;} .hero-val.sm{font-size:20px;}
   .hero-card{padding:12px 14px;}
 }
+
+/* ===== 매장 상세 창 개선 (2026-11-16) ===== */
+.bm-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:4px 0 12px;}
+.bm-k{background:#0d1b2a;border:0.5px solid #1e3347;border-radius:10px;padding:10px 12px;}
+.bm-kl{font-size:11.5px;color:#8aa6bf;margin-bottom:4px;}
+.bm-kv{font-size:19px;font-weight:800;color:#f0f7ff;}
+.bm-kv small{font-size:12px;color:#8aa6bf;font-weight:600;}
+.bm-ks{font-size:11.5px;color:#8aa6bf;margin-top:3px;}
+.bm-bar{height:5px;background:#1a2f44;border-radius:3px;margin-top:8px;}
+.bm-bar i{display:block;height:5px;border-radius:3px;background:#3db87a;}
+.bm-warn{font-size:10.5px;color:#f0a04a;font-weight:600;}
+.bm-ks.pos{color:#3db87a;} .bm-ks.neg{color:#e05555;}
+#branchModal .modal-title,#branchModal .modal-sub{padding-right:150px;}
+@media (max-width:600px){#branchModal .modal-title{padding-right:0;margin-top:30px;} #branchModal .modal-sub{padding-right:0;}}
+.bm-diag{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px;margin-top:14px;}
+.bm-dbox{background:#0d1b2a;border:0.5px solid #1e3347;border-radius:10px;padding:12px 14px;}
+.bm-act{background:#0f1f30;border-color:#2a5a8a;}
+.bm-dh{font-size:12.5px;font-weight:700;color:#e0f0ff;margin-bottom:8px;}
+.bm-di{display:grid;grid-template-columns:8px 66px 1fr;gap:8px;align-items:baseline;font-size:12.5px;line-height:1.6;padding:4px 0;border-bottom:0.5px dashed #1a2f44;}
+.bm-di:last-child{border-bottom:none;}
+.bm-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.bm-dk{font-size:11.5px;color:#8aa6bf;font-weight:600;}
+.bm-dx{color:#c8dff0;} .bm-dx b{color:#fff;}
+.bm-ai{display:flex;gap:8px;font-size:12.5px;color:#c8dff0;line-height:1.55;padding:5px 0;}
+.bm-ai b{flex:0 0 20px;height:20px;border-radius:50%;background:#1a3a5c;color:#7eb8e8;font-size:11px;display:flex;align-items:center;justify-content:center;}
+.bm-th{font-size:12.5px;font-weight:700;color:#e0f0ff;margin-bottom:6px;}
+.bm-th span{font-size:11px;color:#8aa6bf;font-weight:400;margin-left:4px;}
+.bm-tw{overflow-x:auto;}
+.bm-t{width:100%;border-collapse:collapse;font-size:11.5px;min-width:760px;}
+.bm-t th,.bm-t td{padding:6px 4px;text-align:center;border-bottom:0.5px solid #16283c;white-space:nowrap;}
+.bm-t thead th{color:#8aa6bf;font-weight:600;font-size:11px;}
+.bm-t thead th.cur{color:#7eb8e8;border-bottom:2px solid #378add;}
+.bm-t tbody th{text-align:left;color:#8aa6bf;font-weight:600;font-size:11px;padding-left:2px;}
+.bm-t td.v26{color:#7eb8e8;font-weight:700;} .bm-t td.v26.hit{color:#3db87a;}
+.bm-t td.v25{color:#f0a04a;}
+.bm-t td.up{color:#5fd39a;font-weight:700;} .bm-t td.dn{color:#ff8a8a;font-weight:700;}
+.bm-t td.bm-brand{color:#8aa6bf;} .bm-t td.na{color:#5f7d95;}
+.bm-tn{font-size:10.5px;color:#5f7d95;margin-top:6px;}
+@media (max-width:800px){
+  .bm-kpis{grid-template-columns:1fr 1fr;}
+  .bm-diag{grid-template-columns:minmax(0,1fr);}
+}
 </style>
 </head>
 <body>
@@ -2156,11 +2198,12 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
     <button id="kakaoShareBtn" onclick="shareStoreToKakao()" style="position:absolute;top:14px;right:46px;background:#FEE500;color:#3c1e1e;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;">💬 카톡공유</button>
     <div class="modal-title" id="modalTitle">-</div>
     <div class="modal-sub" id="modalSub">-</div>
+    <!-- [매장 상세 개선] 요약 지표 → 차트 → 진단/추천 → 월별 표 -->
+    <div id="modalKpis" class="bm-kpis"></div>
     <div class="modal-cw"><canvas id="modalChart"></canvas></div>
-    <!-- 월별 증감 수치 카드 -->
-    <div id="modalSummary" style="margin-top:10px;overflow-x:auto;"></div>
-    <!-- 물류 매출 섹션 -->
-    <div id="modalLogistics" style="margin-top:14px;"></div>
+    <div id="modalDiagnosis"></div>
+    <div id="modalSummary" style="margin-top:14px;"></div>
+    <div id="modalLogistics" style="display:none;"></div>
     <!-- 매장별 AI 인사이트 -->
     <div id="modalStoreInsight" style="margin-top:14px;"></div>
   </div>
@@ -3480,83 +3523,159 @@ function openBranchModal(b){
   document.getElementById('modalSub').textContent=b.manager+' · '+b.region+' · 목표: 전년 동월 대비 5%↑';
   document.getElementById('branchModal').classList.add('open');
 
-  if(modalChartInst){modalChartInst.destroy();modalChartInst=null;}
-  const datasets=[
-    {type:'bar',label:'26년',data:vals26,backgroundColor:'rgba(55,138,221,0.8)',borderRadius:4,order:3},
-  ];
-  if(vals25) datasets.push({type:'line',label:'25년',data:vals25,borderColor:'#f0a04a',
-    pointRadius:3,borderWidth:2,fill:false,borderDash:[4,3],order:2});
-  if(goals) datasets.push({type:'line',label:'목표(전년+5%)',data:goals,borderColor:'#3db87a',
-    pointRadius:0,borderWidth:1.5,fill:false,borderDash:[2,2],order:1});
-
-  modalChartInst=new Chart(document.getElementById('modalChart'),{
-    type:'bar',
-    data:{labels,datasets},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{datalabels:{display:false},legend:{display:true,labels:{color:'#6b8fa8',font:{size:10},boxWidth:12}},
-        tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!=null?c.parsed.y.toLocaleString()+'만원':'없음')}}},
-      scales:{x:{ticks:{color:'#6b8fa8',font:{size:10}},grid:{color:'#1a2f44'}},
-        y:{min:Math.max(0,minV-pad),ticks:{color:'#6b8fa8',font:{size:10},callback:v=>{
-          if(v>=10000) return (v/10000).toFixed(1)+'억';
-          return v.toLocaleString()+'만';
-        }},grid:{color:'#1a2f44'}}}}
-  });
-
-  // ── 월별 증감 수치 카드 ─────────────────────────────────
+  // ════════ [매장 상세 개선] 공통 계산 ════════
   const fmtD=v=>{
     if(!v||v<=0) return '-';
     if(v>=10000){ const u=Math.floor(v/10000),r=v%10000; return r>0?`${u}억 ${r.toLocaleString()}만원`:`${u}억`; }
     return v.toLocaleString()+'만원';
   };
-  const summaryRows=MONTHS.map((mon,i)=>{
-    const v26=vals26[i], v25=vals25?vals25[i]:null;
-    const diff=(v26!=null&&v25!=null)?v26-v25:null;
-    const rate=(diff!=null&&v25>0)?Math.round(diff/v25*1000)/10:null;
-    const rateColor=rate==null?'#6b8fa8':rate>=0?'#3db87a':'#e05555';
-    const rateStr=rate!=null?(rate>=0?`▲${rate}%`:`▼${Math.abs(rate)}%`):'-';
-    const diffAbs=diff!=null?fmtD(Math.abs(diff)):'-';
-    const diffStr=diff!=null?(diff>0?`+${diffAbs}`:diff<0?`-${diffAbs}`:'±0'):'-';
-    const diffColor=diff==null?'#6b8fa8':diff>0?'#3db87a':diff<0?'#e05555':'#6b8fa8';
-    return `<div style="min-width:80px;flex:1;background:#0d1b2a;border-radius:7px;padding:7px 8px;border:0.5px solid #1a2f44;text-align:center;">
-  <div style="font-size:9px;color:#6b8fa8;margin-bottom:4px;font-weight:500;">${mon}</div>
-  <div style="font-size:10px;color:#378add;font-weight:600;margin-bottom:2px;">${v26!=null?fmtD(v26):'-'}</div>
-  <div style="font-size:9px;color:#f0a04a;margin-bottom:4px;">${v25!=null?fmtD(v25):'-'}</div>
-  <div style="font-size:11px;font-weight:700;color:${rateColor};margin-bottom:2px;">${rateStr}</div>
-  <div style="font-size:9px;color:${diffColor};font-weight:600;">${diffStr}</div>
-</div>`;
-  }).filter(r=>r!==null);
-
-  document.getElementById('modalSummary').innerHTML=`
-<div style="font-size:10px;color:#6b8fa8;margin-bottom:6px;font-weight:500;">월별 전년 대비 증감 &nbsp;<span style="color:#378add">■ 26년</span> &nbsp;<span style="color:#f0a04a">■ 25년</span></div>
-<div style="display:flex;gap:5px;flex-wrap:wrap;">${summaryRows.join('')}</div>`;
-
-  // ── 물류 매출 섹션 ─────────────────────────────────
+  const lastI = active26[active26.length-1].i;           // 이 매장의 가장 최근 데이터 달
   const logData = LOGISTICS[b.name] || null;
-  const logEl = document.getElementById('modalLogistics');
-  if(!logData || !logData.some(v=>v>0)){
-    logEl.innerHTML='';
-  } else {
-    const logRows = MONTHS.map((mon,i)=>{
-      const lv = logData[i]||0;
-      const sv = b.months[i]||0;
-      const ratio = (sv>0 && lv>0) ? (lv/sv*100).toFixed(1) : null;
-      const lvStr = fmtD(Math.round(lv/10000));
-      const ratioColor = ratio==null ? '#6b8fa8' : getLogRatioColor(parseFloat(ratio));
-      const ratioStr = ratio!=null ? ratio+'%' : '-';
-      return `<div style="min-width:80px;flex:1;background:#0a1220;border-radius:7px;padding:7px 8px;border:0.5px solid #1a2f44;text-align:center;">
-  <div style="font-size:9px;color:#6b8fa8;margin-bottom:4px;font-weight:500;">${mon}</div>
-  <div style="font-size:10px;color:#a78bfa;font-weight:600;margin-bottom:2px;">${lvStr}</div>
-  <div style="font-size:11px;font-weight:700;color:${ratioColor};">${ratioStr}</div>
-  <div style="font-size:8px;color:#4a6070;margin-top:1px;">매출대비</div>
-</div>`;
-    }).filter(r=>r!==null);
-
-    logEl.innerHTML=`
-<div style="border-top:0.5px solid #1a2f44;padding-top:12px;">
-  <div style="font-size:10px;color:#6b8fa8;margin-bottom:6px;font-weight:500;">물류 매출 &nbsp;<span style="color:#a78bfa">■ 물류(VAT포함)</span> &nbsp;<span style="color:#6b8fa8">· 매출 대비 비중</span></div>
-  <div style="display:flex;gap:5px;flex-wrap:wrap;">${logRows.join('')}</div>
-</div>`;
+  // 복호두 전체: 월별 전년비(같은 매장끼리 합산 비교) · 매장당 평균 매출
+  const brand={yoy:[],avg:[]};
+  for(let i=0;i<12;i++){
+    let c=0,p=0,s=0,n=0;
+    ALL.forEach(st=>{ const v=st.months[i]||0, q=get25(st.name,i); if(v>0){s+=v;n++;} if(v>0&&q>0){c+=v;p+=q;} });
+    brand.yoy.push(p>0?(c-p)/p*100:null); brand.avg.push(n?Math.round(s/n/10000):null);
   }
+  const sYoy=MONTHS.map((_,i)=>(vals26[i]&&vals25&&vals25[i])?(vals26[i]-vals25[i])/vals25[i]*100:null);
+  const ratio=MONTHS.map((_,i)=>{ const lv=logData?(logData[i]||0):0, sv=b.months[i]||0; return (lv>0&&sv>0)?lv/sv*100:null; });
+  const pTxt=r=>r==null?'-':(r>=0?'+':'')+r.toFixed(1)+'%';
+  const pCls=r=>r==null?'':r>=0?'pos':'neg';
+  const avgOf=a=>{ const x=a.filter(v=>v!=null); return x.length?x.reduce((s,v)=>s+v,0)/x.length:null; };
+  // 작년 이상치: 작년 월 매출 중앙값의 1.4배 이상인 달 (단체주문·행사 등 특수 달 가능성)
+  const v25list=(vals25||[]).filter(v=>v>0).sort((a,c)=>a-c);
+  const med25=v25list.length?v25list[Math.floor(v25list.length/2)]:0;
+  const spike=MONTHS.map((_,i)=>!!(vals25&&vals25[i]&&med25&&vals25[i]>=med25*1.4));
+  // 작년 오픈 초기(첫 3개월): 매출이 아직 자리 잡기 전이라 전년비가 과하게 높게 나옴
+  const open25=vals25?vals25.findIndex(v=>v>0):-1;
+  const lowBase=MONTHS.map((_,i)=>open25>0&&i>=open25&&i<open25+3&&!!(vals25&&vals25[i]));
+
+  // ── ① 요약 지표 ──
+  let y26=0,y25=0; for(let i=0;i<=lastI;i++){ if(vals26[i]&&vals25&&vals25[i]&&!lowBase[i]){ y26+=vals26[i]; y25+=vals25[i]; } } // 작년 오픈 초기 달은 비교에서 제외
+  const ytd=y25>0?(y26-y25)/y25*100:null;
+  const ytdAll=vals26.slice(0,lastI+1).reduce((s,v)=>s+(v||0),0);
+  let gOk=0,gN=0; for(let i=0;i<=lastI;i++){ if(goals&&goals[i]&&vals26[i]){ gN++; if(vals26[i]>=goals[i]) gOk++; } }
+  const rankArr=ALL.map(st=>st.months[lastI]||0).filter(v=>v>0).sort((a,c)=>c-a);
+  const rank=rankArr.indexOf(b.months[lastI])+1;
+  const avgRatio=avgOf(ratio);
+  const firstI=active26[0].i;
+  document.getElementById('modalKpis').innerHTML=`
+    <div class="bm-k"><div class="bm-kl">${MONTHS[firstI]}~${MONTHS[lastI]} 누적</div><div class="bm-kv">${fmtD(ytdAll)}</div><div class="bm-ks ${pCls(ytd)}">전년 같은 기간 ${pTxt(ytd)}</div></div>
+    <div class="bm-k"><div class="bm-kl">${MONTHS[lastI]} 매출</div><div class="bm-kv">${fmtD(vals26[lastI])}</div><div class="bm-ks ${pCls(sYoy[lastI])}">전년 ${pTxt(sYoy[lastI])}${spike[lastI]?' <span class="bm-warn" title="작년 이 달이 평소보다 매우 높았어요">⚠ 작년 특수</span>':''}</div></div>
+    <div class="bm-k"><div class="bm-kl">목표 달성 (전년+5%)</div><div class="bm-kv">${gOk}<small> / ${gN}개월</small></div><div class="bm-bar"><i style="width:${gN?Math.round(gOk/gN*100):0}%"></i></div></div>
+    <div class="bm-k"><div class="bm-kl">${MONTHS[lastI]} 전체 순위</div><div class="bm-kv">${rank||'-'}<small>위 / ${rankArr.length}</small></div><div class="bm-ks">상위 ${rank?Math.max(1,Math.round(rank/rankArr.length*100)):'-'}%</div></div>
+    <div class="bm-k"><div class="bm-kl">평균 물류비중</div><div class="bm-kv" style="color:${avgRatio==null?'#e0f0ff':getLogRatioColor(avgRatio)}">${avgRatio==null?'-':avgRatio.toFixed(1)+'%'}</div><div class="bm-ks">적정 32~36%</div></div>`;
+
+  // ── ② 차트: 0부터 시작, 목표 달성한 달만 초록, 복호두 매장 평균선 ──
+  if(modalChartInst){modalChartInst.destroy();modalChartInst=null;}
+  const barColors=vals26.map((v,i)=>(v&&goals&&goals[i]&&v>=goals[i])?'rgba(61,184,122,0.85)':'rgba(55,138,221,0.8)');
+  const datasets=[
+    {type:'bar',label:'26년 (초록=목표 달성)',data:vals26,backgroundColor:barColors,borderRadius:4,order:4},
+  ];
+  if(vals25) datasets.push({type:'line',label:'25년',data:vals25,borderColor:'#f0a04a',
+    pointRadius:vals25.map((v,i)=>spike[i]?6:3),pointStyle:vals25.map((v,i)=>spike[i]?'triangle':'circle'),
+    pointBackgroundColor:'#f0a04a',borderWidth:2,fill:false,borderDash:[4,3],order:2});
+  if(goals) datasets.push({type:'line',label:'목표(전년+5%)',data:goals,borderColor:'#3db87a',
+    pointRadius:0,borderWidth:1.5,fill:false,borderDash:[2,2],order:1});
+  datasets.push({type:'line',label:'복호두 매장 평균',data:brand.avg,borderColor:'#8aa6bf',
+    pointRadius:0,borderWidth:1.5,fill:false,order:3});
+
+  modalChartInst=new Chart(document.getElementById('modalChart'),{
+    type:'bar',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{datalabels:{display:false},legend:{display:true,labels:{color:'#aac4e0',font:{size:11},boxWidth:12}},
+        tooltip:{callbacks:{
+          label:c=>c.dataset.label.replace(' (초록=목표 달성)','')+': '+(c.parsed.y!=null?c.parsed.y.toLocaleString()+'만원':'없음'),
+          afterBody:t=>{ const i=t[0].dataIndex; const out=[];
+            if(sYoy[i]!=null) out.push(`전년비 ${pTxt(sYoy[i])} (복호두 전체 ${pTxt(brand.yoy[i])})`);
+            if(spike[i]) out.push('⚠ 작년 이 달이 평소보다 매우 높았어요');
+            if(lowBase[i]) out.push('작년 오픈 초기라 전년비가 높게 나와요');
+            if(ratio[i]!=null) out.push(`물류비중 ${ratio[i].toFixed(1)}%`);
+            return out; }
+        }}},
+      scales:{x:{ticks:{color:'#8aa6bf',font:{size:11}},grid:{display:false}},
+        y:{min:0,ticks:{color:'#8aa6bf',font:{size:11},maxTicksLimit:6,callback:v=>{
+          if(v>=10000) return (v/10000).toFixed(1)+'억';
+          return v.toLocaleString()+'만';
+        }},grid:{color:'#1a2f44'}}}}
+  });
+
+  // ── ③ 매출 진단 + 추천 액션 (규칙 기반) ──
+  const diag=[], acts=[];
+  const tone=r=>r==null?'gray':r>=3?'green':r<=-3?'red':'gray';
+  if(ytd!=null) diag.push({t:tone(ytd), h:'올해 누적', x:`${MONTHS[firstI]}~${MONTHS[lastI]} 누적 매출이 전년 같은 기간보다 <b>${pTxt(ytd)}</b>`});
+  // 브랜드 대비: 최근 3개월 전년비 격차
+  const gapIdx=[]; for(let i=lastI;i>=0&&gapIdx.length<3;i--){ if(sYoy[i]!=null&&brand.yoy[i]!=null&&!spike[i]&&!lowBase[i]) gapIdx.push(i); }
+  let gap=null;
+  if(gapIdx.length){
+    const sA=avgOf(gapIdx.map(i=>sYoy[i])), bA=avgOf(gapIdx.map(i=>brand.yoy[i])); gap=sA-bA;
+    const per=gapIdx.length>1?`최근 ${gapIdx.length}개월`:MONTHS[gapIdx[0]];
+    if(gap<=-5){ diag.push({t:'red',h:'원인 위치',x:`${per} 전년비 평균 ${pTxt(sA)} — 복호두 전체(${pTxt(bA)})보다 <b>${Math.abs(gap).toFixed(1)}%p 더 빠져요</b>. 시장 전체보다는 <b>매장 고유 요인</b>일 가능성이 커요`});
+      acts.push('현장 방문: 영업시간·인력·제품 품질·응대 등 운영 점검'); acts.push('주변 상권 변화(경쟁점 오픈, 공사, 유동인구) 확인'); }
+    else if(gap>=5){ diag.push({t:'green',h:'원인 위치',x:`${per} 전년비 평균 ${pTxt(sA)} — 복호두 전체(${pTxt(bA)})보다 <b>${gap.toFixed(1)}%p 좋아요</b>. 매장 운영이 브랜드 평균 이상이에요`});
+      acts.push('잘 되는 요인(프로모션·단체주문·운영 방식)을 정리해 다른 매장과 공유'); }
+    else diag.push({t:'gray',h:'원인 위치',x:`${per} 전년비 평균 ${pTxt(sA)} — 복호두 전체(${pTxt(bA)})와 비슷해요. 매장 문제라기보다 <b>시장·계절 흐름</b>을 따라가는 중이에요`});
+  }
+  // 최근 3개월 vs 직전 3개월
+  const r3=[],p3=[]; for(let i=lastI;i>=0;i--){ if(vals26[i]){ if(r3.length<3) r3.push(vals26[i]); else if(p3.length<3) p3.push(vals26[i]); } }
+  if(r3.length===3&&p3.length===3){
+    const ch=(avgOf(r3)-avgOf(p3))/avgOf(p3)*100;
+    diag.push({t:tone(ch),h:'최근 추세',x:`최근 3개월 월평균 ${fmtD(Math.round(avgOf(r3)))} — 직전 3개월보다 <b>${pTxt(ch)}</b> ${ch>=3?'(오르는 중)':ch<=-3?'(내려가는 중)':'(보합)'}`});
+  }
+  // 작년 특수 달
+  const spikeMs=MONTHS.map((m,i)=>spike[i]&&i<=lastI&&vals26[i]?i:-1).filter(i=>i>=0);
+  if(spikeMs.length){
+    diag.push({t:'amber',h:'비교 주의',x:`작년 ${spikeMs.map(i=>`${MONTHS[i]}(${fmtD(vals25[i])})`).join(', ')}이 작년 평소의 ${(Math.max(...spikeMs.map(i=>vals25[i]))/med25).toFixed(1)}배예요. 그 달의 전년비 하락은 <b>작년 특수 영향</b>이 커서 실제보다 나빠 보여요`});
+    acts.push(`작년 ${spikeMs.map(i=>MONTHS[i]).join('·')}에 단체주문·행사가 있었는지 점주에게 확인 → 올해도 재현 가능한지 검토`);
+  }
+  // 작년 오픈 초기 달
+  const lowMs=MONTHS.map((m,i)=>lowBase[i]&&i<=lastI&&vals26[i]?i:-1).filter(i=>i>=0);
+  if(lowMs.length){
+    diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>MONTHS[i]).join('·')}은 오픈 초기라 매출이 낮아서, 그 달의 전년비는 <b>실제보다 좋아 보여요</b> (진단에서 제외)`});
+  }
+  // 목표 달성
+  if(gN) diag.push({t:gOk/gN>=0.5?'green':gOk===0?'red':'amber',h:'목표 달성',x:`${gN}개월 중 <b>${gOk}개월</b> 목표(전년+5%) 달성`});
+  // 물류
+  const hiMs=ratio.map((r,i)=>r!=null&&r>=38?i:-1).filter(i=>i>=0);
+  if(avgRatio!=null){
+    const ok=avgRatio>=32&&avgRatio<=36;
+    diag.push({t:ok?'green':avgRatio>36?'red':'amber',h:'물류비중',x:`평균 <b>${avgRatio.toFixed(1)}%</b> (적정 32~36%)${hiMs.length?` · 38% 이상인 달 ${hiMs.length}개 (${hiMs.map(i=>MONTHS[i]).join(', ')})`:''}`});
+    if(avgRatio>36) acts.push('물류비중 높음: 폐기량·레시피 준수·발주량 점검');
+    else if(hiMs.length>=2) acts.push(`물류비중이 38%를 넘는 달이 잦음(${hiMs.map(i=>MONTHS[i]).join('·')}): 해당 월 발주·폐기 내역 확인`);
+    else if(avgRatio<30) acts.push('물류비중이 낮음: 레시피 기준량 준수 여부 확인(품질 저하 가능성)');
+  }
+  if(!acts.length) acts.push('특이사항 없음 — 현재 운영 유지, 월 1회 정기 점검');
+  const TC={red:'#e05555',green:'#3db87a',amber:'#f0a04a',gray:'#7eb8e8'};
+  document.getElementById('modalDiagnosis').innerHTML=`
+    <div class="bm-diag">
+      <div class="bm-dbox">
+        <div class="bm-dh">🔍 매출 진단</div>
+        ${diag.map(d=>`<div class="bm-di"><span class="bm-dot" style="background:${TC[d.t]}"></span><span class="bm-dk">${d.h}</span><span class="bm-dx">${d.x}</span></div>`).join('')}
+      </div>
+      <div class="bm-dbox bm-act">
+        <div class="bm-dh">✅ 추천 액션</div>
+        ${acts.slice(0,4).map((a,i)=>`<div class="bm-ai"><b>${i+1}</b><span>${a}</span></div>`).join('')}
+      </div>
+    </div>`;
+
+  // ── ④ 월별 표 (기존 숫자 칸 24개 → 표 하나) ──
+  const num=v=>v?v.toLocaleString():'-';
+  const cellYoy=r=>r==null?'<td class="na">-</td>':`<td class="${r>=0?'up':'dn'}" style="background:${r>=10?'rgba(61,184,122,.22)':r>=0?'rgba(61,184,122,.10)':r>-10?'rgba(224,85,85,.12)':'rgba(224,85,85,.26)'}">${pTxt(r)}</td>`;
+  document.getElementById('modalSummary').innerHTML=`
+    <div class="bm-th">월별 상세 <span>(단위: 만원 · 표 셀 색 = 전년 대비)</span></div>
+    <div class="bm-tw"><table class="bm-t">
+      <thead><tr><th></th>${MONTHS.map((m,i)=>`<th class="${i===lastI?'cur':''}">${m}</th>`).join('')}</tr></thead>
+      <tbody>
+        <tr><th>26년</th>${MONTHS.map((_,i)=>`<td class="v26${goals&&goals[i]&&vals26[i]>=goals[i]?' hit':''}">${num(vals26[i])}</td>`).join('')}</tr>
+        <tr><th>25년</th>${MONTHS.map((_,i)=>`<td class="v25">${num(vals25&&vals25[i])}${spike[i]?' <span class="bm-warn">⚠</span>':lowBase[i]?' <span class="bm-warn" title="작년 오픈 초기">초</span>':''}</td>`).join('')}</tr>
+        <tr><th>전년비</th>${MONTHS.map((_,i)=>cellYoy(sYoy[i])).join('')}</tr>
+        <tr><th>복호두 전체</th>${MONTHS.map((_,i)=>`<td class="bm-brand">${vals26[i]?pTxt(brand.yoy[i]):'-'}</td>`).join('')}</tr>
+        ${logData?`<tr><th>물류비중</th>${MONTHS.map((_,i)=>`<td style="color:${ratio[i]==null?'#5f7d95':getLogRatioColor(ratio[i])};font-weight:600;">${ratio[i]==null?'-':ratio[i].toFixed(1)+'%'}</td>`).join('')}</tr>`:''}
+      </tbody></table></div>
+    <div class="bm-tn">26년 칸이 초록 글씨 = 목표 달성 · ⚠ = 작년 특수 달(평소의 1.4배 이상) · 초 = 작년 오픈 초기 3개월</div>`;
 
   // ── 매장별 AI 인사이트 (물류 매출 섹션 바로 아래) ─────────────────────
   const insightEl = document.getElementById('modalStoreInsight');
