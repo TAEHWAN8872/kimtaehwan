@@ -617,6 +617,85 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
   .flt-lbl{flex-basis:44px;font-size:10.5px;}
   .kv{font-size:19px;}
 }
+
+/* ===== 매출 현황판 차트 정리 (2026-11-16) ===== */
+/* [1단계] 핵심 지표 4개 */
+.hero-row{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+.hero-card{background:#111e2e;border:0.5px solid #1e3347;border-radius:12px;padding:14px 18px;}
+.hero-main{border-color:#2a5a8a;background:#12243a;}
+.hero-warn{border-color:#6b2a2a;background:#1e1418;}
+.hero-warn .hero-val{color:#ff8a8a;}
+.hero-lbl{font-size:12.5px;color:#8aa6bf;margin-bottom:6px;font-weight:600;}
+.hero-tag{font-size:10px;font-weight:600;color:#7eb8e8;background:#1a3a5c;border-radius:4px;padding:1px 6px;margin-left:4px;}
+.hero-val{font-size:30px;font-weight:800;color:#f0f7ff;line-height:1.15;}
+.hero-val.sm{font-size:24px;}
+.hero-of{font-size:15px;color:#8aa6bf;font-weight:600;}
+.hero-sub{font-size:12px;color:#8aa6bf;margin-top:6px;}
+.hero-bar{height:5px;background:#1a2f44;border-radius:3px;margin-top:8px;}
+.hero-bar i{display:block;height:5px;border-radius:3px;background:#3db87a;}
+/* [1단계] 세부 KPI 줄은 작게 */
+.kpi-row-compact .kpi{padding:9px 12px;}
+.kpi-row-compact .kv{font-size:17px;}
+.kpi-row-compact .kl,.kpi-row-compact .ks{font-size:11px;}
+@media (min-width:1100px){ .kpi-row-compact{grid-template-columns:repeat(8,1fr);} }
+/* [1단계] 하락/상승 TOP5 */
+.movers-grid{margin-bottom:12px;}
+.mv-hint{font-size:10.5px;color:#5f7d95;font-weight:400;margin-left:6px;}
+.mv-item{display:grid;grid-template-columns:18px minmax(0,1.3fr) minmax(40px,1fr) 78px 62px;gap:10px;align-items:center;padding:7px 6px;border-bottom:0.5px solid #16283c;cursor:pointer;border-radius:6px;}
+.mv-item:last-child{border-bottom:none;}
+.mv-item:hover{background:rgba(55,138,221,0.08);}
+.mv-rank{font-size:11px;color:#8aa6bf;text-align:center;}
+.mv-name{font-size:12.5px;color:#e0f0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mv-name small{font-size:10.5px;color:#8aa6bf;margin-left:6px;}
+.mv-bar{height:6px;background:#1a2f44;border-radius:3px;}
+.mv-bar i{display:block;height:6px;border-radius:3px;}
+.mv-bar i.dn{background:#e05555;} .mv-bar i.up{background:#3db87a;}
+.mv-val{font-size:12px;color:#c8dff0;text-align:right;}
+.mv-rate{font-size:12.5px;font-weight:700;text-align:right;}
+/* [2단계] 추이 차트 전환 버튼 + 표 접기 */
+.seg{display:inline-flex;border:0.5px solid #2a5a8a;border-radius:6px;overflow:hidden;margin-left:6px;}
+.seg-btn{font-size:10.5px;padding:3px 10px;color:#8aa6bf;cursor:pointer;}
+.seg-btn.on{background:#1a3a5c;color:#e0f0ff;font-weight:600;}
+details.fold{margin-top:8px;}
+details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0;user-select:none;}
+/* [2단계] 월별 매장 수: 차트와 같은 숫자 칸 숨김 */
+#storeSummary{display:none;}
+.card:has(#storeChart) .cw-sm{height:270px;}
+/* [3단계] 담당자 카드 보조줄 / 지역 매장 수 */
+.mgr-sub{font-size:11px;color:#8aa6bf;margin-top:6px;}
+.mgr-sub b{font-weight:700;color:#c8dff0;}
+.mgr-sub b.pos{color:#3db87a;} .mgr-sub b.neg{color:#e05555;}
+.rg-cnt{font-size:10px;color:#8aa6bf;background:#1a2f44;border-radius:4px;padding:0 5px;margin-left:3px;}
+/* [3단계] 히트맵 */
+.hm-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#8aa6bf;margin-bottom:8px;}
+.hm-legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px;}
+.hm-card{min-width:0;max-width:100%;overflow:hidden;}
+.hm-wrap{max-height:460px;overflow:auto;width:100%;}
+.hm-row{min-width:420px;}
+.hm-row{display:grid;gap:3px;align-items:center;margin-bottom:3px;}
+.hm-head{position:sticky;top:0;background:#111e2e;z-index:1;font-size:11px;color:#8aa6bf;text-align:center;padding:4px 0;}
+.hm-head>div:first-child{text-align:left;}
+.hm-name{font-size:12px;color:#c8dff0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;padding-right:6px;}
+.hm-name:hover{color:#fff;text-decoration:underline;}
+.hm-cell{height:20px;border-radius:3px;}
+.hm-na{background:repeating-linear-gradient(45deg,#16283c 0 3px,#111e2e 3px 6px) !important;}
+.hm-legend i.hm-na{border:0.5px solid #1e3347;}
+.hm-streak{font-size:11.5px;color:#8aa6bf;text-align:center;}
+.hm-streak.hot{color:#ff8a8a;font-weight:700;}
+/* [3단계] 물류 표: 스크롤 없이 전부 보이게 */
+.log-table-compact{max-height:none;min-width:0;}
+.log-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;}
+@media (max-width:700px){.log-grid{grid-template-columns:minmax(0,1fr);}}
+@media (max-width:900px){
+  .hero-row{grid-template-columns:1fr 1fr;}
+  .hero-main{grid-column:1 / -1;}
+  .mv-item{grid-template-columns:16px minmax(0,1fr) 70px 58px;}
+  .mv-bar{display:none;}
+}
+@media (max-width:600px){
+  .hero-val{font-size:26px;} .hero-val.sm{font-size:20px;}
+  .hero-card{padding:12px 14px;}
+}
 </style>
 </head>
 <body>
@@ -1882,14 +1961,16 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
   <!-- AI 자동 인사이트는 위쪽 필터탭 영역에 함께 배치됨 -->
 
   <!-- KPI -->
-  <div class="kpi-row">
+  <!-- [1단계] 핵심 지표 4개: 기준 달(선택한 달, 평균 탭이면 가장 최근 달) -->
+  <div class="hero-row" id="heroRow"></div>
+  <div class="kpi-row kpi-row-compact">
     <div class="kpi"><div class="kl">운영 매장 수</div><div class="kv" id="k1">-</div><div class="ks" style="color:#6b8fa8;" id="k1s">-</div></div>
     <div class="kpi"><div class="kl" id="k2l">최근월 평균 매출</div><div class="kv" id="k2">-</div><div class="ks" id="k2s">-</div></div>
     <div class="kpi kpi-click" id="kpi3" onclick="openKpiModal('over')" title="클릭하여 달성 매장 보기"><div class="kl" id="k3l">전년 동월 대비 5%↑ 목표 달성</div><div class="kv" id="k3">-</div><div class="ks" id="k3s">-</div></div>
     <div class="kpi kpi-click" id="kpi6" onclick="openKpiModal('stable')" title="클릭하여 매장 보기"><div class="kl" id="k6l">전년비 ±2% 유지 매장</div><div class="kv" id="k6">-</div><div class="ks" id="k6s">-</div></div>
     <div class="kpi"><div class="kl" id="k7l">전년 대비 성장</div><div class="kv" id="k7">-</div><div class="ks" id="k7s">-</div></div>
     <div class="kpi"><div class="kl" id="k8l">전년 대비 매장별성장</div><div class="kv" id="k8">-</div><div class="ks" id="k8s">-</div><div class="ks" id="k8note" style="color:#6b8fa8;margin-top:2px;"></div></div>
-    <div class="kpi"><div class="kl">전월 대비 성장</div><div class="kv" id="k4">-</div><div class="ks" id="k4s">-</div></div>
+    <div class="kpi" style="display:none;"><div class="kl">전월 대비 성장</div><div class="kv" id="k4">-</div><div class="ks" id="k4s">-</div></div>
     <div class="kpi"><div class="kl">최고 매출 매장</div><div class="kv" id="k5" style="font-size:16px;">-</div><div class="ks" id="k5s" style="color:#6b8fa8;">-</div></div>
     <div class="kpi" style="border-color:#38bdf8;display:flex;flex-direction:column;">
       <div class="kl" style="color:#38bdf8;margin-bottom:8px;">📊 매출 분석</div>
@@ -1901,6 +1982,12 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       </div>
       <div id="analysisTabContent" style="flex:1;display:flex;flex-direction:column;justify-content:center;"></div>
     </div>
+  </div>
+
+  <!-- [1단계] 오늘 챙길 매장: 전년 동월 대비 하락/상승 TOP5 -->
+  <div class="main-grid movers-grid">
+    <div class="card"><div class="ctitle"><span id="moverDownTitle">전년 대비 하락 TOP 5</span><span class="mv-hint">클릭하면 월별 상세</span></div><div id="moverDown"></div></div>
+    <div class="card"><div class="ctitle"><span id="moverUpTitle">전년 대비 상승 TOP 5</span><span class="mv-hint">클릭하면 월별 상세</span></div><div id="moverUp"></div></div>
   </div>
 
   <!-- 메인 -->
@@ -1924,17 +2011,23 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
           <div id="trendTabAvg" onclick="setTrendTab('avg')"
             style="font-size:10px;padding:3px 10px;border-radius:5px;cursor:pointer;border:0.5px solid #2a5a8a;
             color:#38bdf8;background:rgba(56,189,248,0.18);transition:all .15s;font-weight:600;">
-            📊 평균매출
+            📊 매출
           </div>
           <div id="trendTabLog" onclick="setTrendTab('log')"
             style="font-size:10px;padding:3px 10px;border-radius:5px;cursor:pointer;border:0.5px solid #3a2a5a;
             color:#a78bfa;background:transparent;transition:all .15s;">
             🚚 물류매출
           </div>
+          <div class="seg" id="trendMetricSeg">
+            <span class="seg-btn on" data-m="sum" onclick="setTrendMetric('sum')">합산</span>
+            <span class="seg-btn" data-m="avg" onclick="setTrendMetric('avg')">매장당 평균</span>
+          </div>
         </div>
       </div>
       <div class="cw"><canvas id="trendChart" role="img" aria-label="월별 합산 매출 추이"></canvas></div>
-      <div id="trendSummary" style="margin-top:10px;overflow-x:auto;"></div>
+      <details class="fold"><summary>월별 상세 표 보기</summary>
+        <div id="trendSummary" style="margin-top:8px;overflow-x:auto;"></div>
+      </details>
     </div>
   </div>
 
@@ -1962,13 +2055,28 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <div class="cw-sm"><canvas id="growChart" role="img" aria-label="월별 증감률"></canvas></div>
     </div>
     <div class="card">
-      <div class="ctitle" id="rankTitle">매출 순위 (상위 15개)</div>
-      <div id="rankList" style="overflow-y:auto;max-height:150px;padding-right:2px;"></div>
-    </div>
-    <div class="card">
       <div class="ctitle">지역별 평균 매출</div>
       <div id="regionList" style="overflow-y:auto;max-height:150px;padding-right:2px;"></div>
     </div>
+  </div>
+
+  <!-- [3단계] 매장 × 월 히트맵: 칸 색 = 전년 같은 달 대비 증감 -->
+  <div class="card hm-card" style="margin-top:12px;">
+    <div class="ctitle">
+      <span>매장별 월간 흐름 <span class="mv-hint">칸 색 = 전년 같은 달 대비</span></span>
+      <select class="filter-sel" id="hmSort" onchange="renderHeatmap(filtered())">
+        <option value="streak">연속 하락 긴 순</option>
+        <option value="last_asc">최근 달 전년비 낮은 순</option>
+        <option value="last_desc">최근 달 전년비 높은 순</option>
+        <option value="name">매장명 순</option>
+      </select>
+    </div>
+    <div class="hm-legend">
+      <span><i style="background:#c43c3c"></i>-10% 이하</span><span><i style="background:#8a3a3a"></i>-3~-10%</span>
+      <span><i style="background:#2a3a4c"></i>±3%</span><span><i style="background:#2f6b46"></i>+3~+10%</span>
+      <span><i style="background:#3db87a"></i>+10% 이상</span><span><i class="hm-na"></i>비교 불가</span>
+    </div>
+    <div class="hm-wrap" id="heatmap"></div>
   </div>
 
   <!-- 물류 비중 분석 섹션 -->
@@ -1982,13 +2090,13 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(1); cursor:
       <!-- 월 탭 -->
       <div id="logMonthTabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+    <div class="log-grid">
       <!-- 차트 -->
       <div style="position:relative;height:240px;">
         <canvas id="logRatioChart"></canvas>
       </div>
       <!-- 수치 표 -->
-      <div id="logRatioTable" style="overflow-y:auto;max-height:240px;"></div>
+      <div id="logRatioTable" class="log-table-compact"></div>
     </div>
     <div style="font-size:9px;color:#4a6070;margin-top:8px;">
       ※ 비중 색상: <span style="color:#3db87a">■ ~25%</span> <span style="color:#f0a04a">■ 25~35%</span> <span style="color:#e05555">■ 35%↑</span>
@@ -2455,80 +2563,42 @@ function renderTrend(data){
     const avgMinPad = Math.max(Math.round(avgMin*0.1), 200);
     const y2Min = Math.max(0, avgMin - avgMinPad);
 
+    // [2단계] 막대2+선2(축 2개) → 26년 vs 25년 선 2개, 축 1개. '합산 / 매장당 평균' 버튼으로 전환
+    const metric = window.__trendMetric || 'sum';
+    const s26 = metric==='sum' ? vals26 : avg26;
+    const s25 = metric==='sum' ? vals25 : avg25;
+    const lineVals=[...s26,...s25].filter(v=>v!=null&&v>0);
+    const lMin=Math.min(...lineVals), lMax=Math.max(...lineVals);
+    const lPad=Math.round((lMax-lMin)*0.25)||Math.round(lMin*0.05)||100;
+    const unit=v=>v>=10000?(v/10000).toFixed(1)+'억':v.toLocaleString()+'만';
     charts.trend=new Chart(document.getElementById('trendChart'),{
-      type:'bar',
+      type:'line',
       data:{labels,datasets:[
-        {type:'bar',label:'26년 평균',data:avg26,
-          backgroundColor:'rgba(56,189,248,0.55)',borderColor:'rgba(56,189,248,0.9)',
-          borderWidth:1.5,borderRadius:5,yAxisID:'y2',order:4},
-        {type:'bar',label:'25년 평균',data:avg25,
-          backgroundColor:'rgba(255,176,50,0.55)',borderColor:'rgba(255,176,50,0.9)',
-          borderWidth:1.5,borderRadius:5,yAxisID:'y2',order:3},
-        {type:'line',label:'25년 합산',data:vals25,
-          borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',
-          fill:true,tension:0.4,pointRadius:5,pointStyle:'triangle',pointBackgroundColor:'#f59e0b',
-          pointBorderColor:'#0d1b2a',pointBorderWidth:2,borderWidth:2,
-          borderDash:[5,3],yAxisID:'y',order:2},
-        {type:'line',label:'26년 합산',data:vals26,
-          borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.06)',
-          fill:true,tension:0.4,pointRadius:6,pointStyle:'circle',pointBackgroundColor:'#38bdf8',
-          pointBorderColor:'#0d1b2a',pointBorderWidth:2,borderWidth:2.5,
-          yAxisID:'y',order:1},
+        {label:'26년',data:s26,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.10)',fill:true,
+          tension:0.35,pointRadius:4,pointBackgroundColor:'#38bdf8',pointBorderColor:'#0d1b2a',pointBorderWidth:2,borderWidth:2.5},
+        {label:'25년',data:s25,borderColor:'#f59e0b',backgroundColor:'transparent',fill:false,
+          tension:0.35,pointRadius:3,pointBackgroundColor:'#f59e0b',borderWidth:2,borderDash:[5,4]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
         plugins:{
           datalabels:{display:false},
-          legend:{display:true,labels:{color:'#aac4e0',font:{size:11},boxWidth:14,
-            generateLabels:chart=>chart.data.datasets.map((ds,i)=>{
-              const isBar=ds.type==='bar';
-              return {
-                text:ds.label,
-                fillStyle:isBar?(ds.backgroundColor||ds.borderColor):ds.borderColor,
-                strokeStyle:ds.borderColor,
-                lineDash:ds.borderDash||[],
-                lineWidth:isBar?1:2.5,
-                fontColor:'#aac4e0',hidden:false,
-                datasetIndex:i
-              };
-            })
-          }},
-          tooltip:{
-            mode:'index',intersect:false,
-            callbacks:{
-              label:c=>{
-                const lbl=c.dataset.label;
-                const v=c.parsed.y;
-                if(v==null) return null;
-                const fv=fmtDetail(v);
-                if(lbl==='26년 합산'){
-                  const v25=vals25[c.dataIndex]||0;
-                  if(v25>0){
-                    const rate=Math.round((v-v25)/v25*1000)/10;
-                    const sign=rate>=0?'▲':'▼';
-                    const diff=v-v25;
-                    const diffSign=diff>=0?'+':'-';
-                    return `${lbl}: ${fv}  (전년비 ${sign}${Math.abs(rate)}%,  ${diffSign}${fmtDetail(Math.abs(diff))})`;
-                  }
-                }
-                return `${lbl}: ${fv}`;
-              }
+          legend:{display:true,align:'end',labels:{color:'#aac4e0',font:{size:11},boxWidth:16,boxHeight:2}},
+          tooltip:{callbacks:{
+            title:t=>`${t[0].label} ${metric==='sum'?'합산 매출':'매장당 평균'}`,
+            label:c=>`${c.dataset.label}: ${fmtDetail(c.parsed.y)}`,
+            afterBody:t=>{
+              const i=t[0].dataIndex, a=s26[i], b=s25[i];
+              if(!(a>0&&b>0)) return '';
+              const r=Math.round((a-b)/b*1000)/10;
+              return `전년비 ${r>=0?'▲':'▼'}${Math.abs(r)}%`;
             }
-          }
+          }}
         },
         scales:{
-          x:{ticks:{color:'#6b8fa8',font:{size:11}},grid:{color:'#1a2f44'}},
-          y:{position:'left',min:yMin,
-            title:{display:true,text:'합산 매출',color:'#38bdf8',font:{size:10}},
-            ticks:{color:'#38bdf8',font:{size:11},callback:v=>{
-              if(v>=10000) return (v/10000).toFixed(1)+'억';
-              return v.toLocaleString()+'만';
-            }},grid:{color:'#1a2f44'}},
-          y2:{position:'right',min:y2Min,max:avgMax+avgPad,
-            title:{display:false},
-            ticks:{color:'#fbbf24',font:{size:10},callback:v=>{
-              if(v>=10000) return (v/10000).toFixed(1)+'억';
-              return v.toLocaleString()+'만';
-            }},grid:{display:false}}
+          x:{ticks:{color:'#8aa6bf',font:{size:11}},grid:{display:false}},
+          y:{min:Math.max(0,lMin-lPad),max:lMax+lPad,
+            ticks:{color:'#8aa6bf',font:{size:11},maxTicksLimit:5,callback:unit},grid:{color:'#1a2f44'}}
         }}
     });
 
@@ -2729,14 +2799,14 @@ function renderTrend(data){
 function renderDist(data, lastIdx){
   const vals=data.map(b=>getBranchVal(b,lastIdx)).filter(v=>v>0);
   const buckets=[
-    {label:'~1000만',min:0,      max:10000000, color:'#5b6fa8'},
-    {label:'1000~1500만',min:10000000,max:15000000,color:'#2a5a8a'},
-    {label:'1500~2000만',min:15000000,max:20000000,color:'#185fa5'},
-    {label:'2000~2500만',min:20000000,max:25000000,color:'#1a7fc1'},
-    {label:'2500~3000만',min:25000000,max:30000000,color:'#0f6e8a'},
-    {label:'3000~3500만',min:30000000,max:35000000,color:'#0f8a6e'},
-    {label:'3500~4000만',min:35000000,max:40000000,color:'#0f6e56'},
-    {label:'4000만~',   min:40000000,max:Infinity, color:'#3db87a'},
+    {label:'~1천만',min:0,      max:10000000, color:'#5b6fa8'},
+    {label:'1천~1.5천',min:10000000,max:15000000,color:'#2a5a8a'},
+    {label:'1.5천~2천',min:15000000,max:20000000,color:'#185fa5'},
+    {label:'2천~2.5천',min:20000000,max:25000000,color:'#1a7fc1'},
+    {label:'2.5천~3천',min:25000000,max:30000000,color:'#0f6e8a'},
+    {label:'3천~3.5천',min:30000000,max:35000000,color:'#0f8a6e'},
+    {label:'3.5천~4천',min:35000000,max:40000000,color:'#0f6e56'},
+    {label:'4천만~',   min:40000000,max:Infinity, color:'#3db87a'},
   ];
   const counts=buckets.map(b=>vals.filter(v=>v>=b.min&&v<b.max).length);
   destroyChart('dist');
@@ -2750,7 +2820,7 @@ function renderDist(data, lastIdx){
         label:c=>c.parsed.y+'개 매장'
       }}},
       scales:{
-        x:{ticks:{color:'#6b8fa8',font:{size:9},maxRotation:30},grid:{display:false}},
+        x:{ticks:{color:'#8aa6bf',font:{size:10},maxRotation:0,autoSkip:false},grid:{display:false}},
         y:{ticks:{color:'#6b8fa8',font:{size:10},stepSize:1,callback:v=>Number.isInteger(v)?v+'개':''},grid:{color:'#1a2f44'}}
       }}
   });
@@ -2764,10 +2834,13 @@ function renderGrow(data){
   const labels=[],rates=[],diffs=[];
   for(let i=1;i<active.length;i++){
     const prev=active[i-1],cur=active[i];
-    labels.push(MONTHS[prev.i]+'→'+MONTHS[cur.i]);
+    labels.push(MONTHS[cur.i]); // [2단계] x축은 짧게 '10월', 툴팁에서 '9월→10월' 표시
     rates.push(prev.v?Math.round((cur.v-prev.v)/prev.v*1000)/10:0);
     diffs.push(Math.round((cur.v-prev.v)/10000)); // 만원 단위 금액 차이
   }
+  const growFull=active.slice(1).map((c,i)=>MONTHS[active[i].i]+'→'+MONTHS[c.i]);
+  // [2단계] 숫자 라벨은 가장 크게 오른 달 / 가장 크게 내린 달 2개만 (나머지는 마우스 올리면 보임)
+  const maxI=rates.indexOf(Math.max(...rates)), minI=rates.indexOf(Math.min(...rates));
   destroyChart('grow');
   charts.grow=new Chart(document.getElementById('growChart'),{
     type:'bar',
@@ -2776,6 +2849,7 @@ function renderGrow(data){
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{
+          title:t=>growFull[t[0].dataIndex],
           label:c=>{
             const rate=c.parsed.y;
             const diff=diffs[c.dataIndex];
@@ -2784,17 +2858,17 @@ function renderGrow(data){
           }
         }},
         datalabels:{
-          display:true,
+          display:ctx=>(ctx.dataIndex===maxI&&rates[maxI]>0)||(ctx.dataIndex===minI&&rates[minI]<0),
           anchor:ctx=>rates[ctx.dataIndex]>=0?'end':'start',
           align:ctx=>rates[ctx.dataIndex]>=0?'top':'bottom',
           formatter:(v,ctx)=>{
             const sign=v>=0?'+':'';
             const diff=diffs[ctx.dataIndex];
             const dsign=diff>=0?'+':'';
-            return [`${sign}${v}%`, `${dsign}${diff.toLocaleString()}만`];
+            return `${sign}${v}%`;
           },
           color:ctx=>rates[ctx.dataIndex]>=0?'#3db87a':'#e05555',
-          font:{size:9,weight:'bold'},
+          font:{size:11,weight:'bold'},
           padding:2,
           textAlign:'center'
         }
@@ -2809,30 +2883,132 @@ function renderGrow(data){
   });
 }
 
-// 순위: 선택 월 또는 평균 실매출 기준
-function renderPie(data, lastIdx){
-  const withVal=data.map(b=>({...b,lastVal:getBranchVal(b,lastIdx)})).filter(b=>b.lastVal>0);
-  const top=[...withVal].sort((a,b)=>b.lastVal-a.lastVal).slice(0,15);
-  const maxVal=top[0]?top[0].lastVal:1;
-  const el=document.getElementById('rankList');
-  el.innerHTML=top.map((b,i)=>{
-    const goal=getGoalVal(b.name, lastIdx);
-    const pct=Math.round(b.lastVal/maxVal*100);
-    const ac=goal>0?(b.lastVal>=goal?'#3db87a':b.lastVal>=goal*0.9?'#f0a04a':'#e05555'):'#378add';
-    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`<span style="color:#6b8fa8;font-size:10px;">${i+1}</span>`;
-    return `<div style="margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-        <div style="display:flex;align-items:center;gap:5px;">
-          <span style="width:16px;text-align:center;font-size:11px;">${medal}</span>
-          <span class="store-name" style="font-size:10px;color:#c8dff0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">${b.name}</span>
-        </div>
-        <span style="font-size:11px;font-weight:600;color:#e0f0ff;">${fmt(b.lastVal)}</span>
-      </div>
-      <div style="background:#1a2f44;border-radius:3px;height:4px;">
-        <div style="width:${pct}%;height:4px;border-radius:3px;background:${ac};transition:width .8s ease;"></div>
-      </div>
+// ════════ [1단계] 핵심 지표 4개 ════════
+function setTrendMetric(m){
+  window.__trendMetric=m;
+  document.querySelectorAll('#trendMetricSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  renderTrend(filtered());
+}
+function pctTxt(r){ return r==null?'-':(r>=0?'+':'')+r.toFixed(1)+'%'; }
+function pctCls(r){ return r==null?'':r>=0?'pos':'neg'; }
+// 매장 목록 모달 (기존 KPI 모달 화면을 재사용)
+function openStoreListModal(title, sub, list){
+  document.getElementById('kpiModalTitle').textContent=title;
+  document.getElementById('kpiModalSub').textContent=sub;
+  const el=document.getElementById('kpiModalList');
+  el.innerHTML=list.map((x,i)=>`<div class="kml-item" data-bname="${escapeAttr(x.b.name)}" style="cursor:pointer;">
+      <div class="kml-left"><span class="kml-rank">${i+1}</span>
+        <div><div class="kml-name store-name">${x.b.name}</div><div class="kml-mgr">${x.b.manager} · ${x.b.region}</div></div></div>
+      <div class="kml-right"><div class="kml-val">${fmt(x.cur)}</div>
+        <div class="kml-rate ${pctCls(x.rate)}">${pctTxt(x.rate)} (전년 ${fmt(x.v25||0)})</div></div>
+    </div>`).join('') || '<div style="padding:20px;text-align:center;color:#8aa6bf;">해당 매장이 없어요</div>';
+  el.querySelectorAll('.kml-item').forEach(item=>item.addEventListener('click',function(){
+    const b=window.__allMap&&window.__allMap[this.dataset.bname];
+    closeKpiModal(); if(b) openBranchModal(b);
+  }));
+  document.getElementById('kpiModal').classList.add('open');
+}
+// 기준 달(idx)의 매장별 매출·전년·전년비 목록
+function storeRowsAt(data, idx){
+  return data.map(b=>{
+    const cur=b.months[idx]||0, v25=get25(b.name,idx), goal=getGoal(b.name,idx);
+    return {b,cur,v25,goal,rate:(cur>0&&v25>0)?(cur-v25)/v25*100:null};
+  }).filter(x=>x.cur>0);
+}
+function renderHero(data, idx, isAuto){
+  const el=document.getElementById('heroRow');
+  if(!el||idx<0) return;
+  const rows=storeRowsAt(data, idx);
+  const mon=MONTHS[idx];
+  const total=rows.reduce((s,x)=>s+x.cur,0);
+  const total25=data.reduce((s,b)=>s+get25(b.name,idx),0);
+  const totalPrev=idx>0?data.reduce((s,b)=>s+(b.months[idx-1]||0),0):0;
+  const mom=totalPrev>0?(total-totalPrev)/totalPrev*100:null;
+  const yoy=total25>0?(total-total25)/total25*100:null;
+  const avg=rows.length?total/rows.length:0;
+  const r25=data.map(b=>get25(b.name,idx)).filter(v=>v>0);
+  const avg25=r25.length?r25.reduce((s,v)=>s+v,0)/r25.length:0;
+  const avgYoy=avg25>0?(avg-avg25)/avg25*100:null;
+  const withGoal=rows.filter(x=>x.goal>0), ok=withGoal.filter(x=>x.cur>=x.goal);
+  const okPct=withGoal.length?Math.round(ok.length/withGoal.length*100):0;
+  const warn=rows.filter(x=>x.rate!=null&&x.rate<=-10).sort((a,b)=>a.rate-b.rate);
+  window.__heroLists={ok:ok.sort((a,b)=>b.rate-a.rate), warn, mon};
+  el.innerHTML=`
+    <div class="hero-card hero-main">
+      <div class="hero-lbl">${mon} 총매출 ${isAuto?'<span class="hero-tag">최근 달</span>':''}</div>
+      <div class="hero-val">${fmt(total)}</div>
+      <div class="hero-sub"><span class="${pctCls(mom)}">전월 ${pctTxt(mom)}</span> · <span class="${pctCls(yoy)}">전년 ${pctTxt(yoy)}</span> · ${rows.length}개 매장</div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-lbl">매장당 평균</div>
+      <div class="hero-val sm">${fmt(avg)}</div>
+      <div class="hero-sub"><span class="${pctCls(avgYoy)}">전년 ${pctTxt(avgYoy)}</span></div>
+    </div>
+    <div class="hero-card kpi-click" onclick="openStoreListModal(window.__heroLists.mon+' 목표 달성 매장','전년 같은 달 +5% 이상 · '+window.__heroLists.ok.length+'개',window.__heroLists.ok)">
+      <div class="hero-lbl">목표 달성 매장 <span class="hero-tag">전년 +5%</span></div>
+      <div class="hero-val sm">${ok.length} <span class="hero-of">/ ${withGoal.length}</span></div>
+      <div class="hero-bar"><i style="width:${okPct}%"></i></div>
+      <div class="hero-sub">${okPct}% 달성 · 눌러서 목록 보기</div>
+    </div>
+    <div class="hero-card hero-warn kpi-click" onclick="openStoreListModal(window.__heroLists.mon+' 점검 필요 매장','전년 같은 달 대비 -10% 이하 · '+window.__heroLists.warn.length+'개',window.__heroLists.warn)">
+      <div class="hero-lbl">점검 필요 매장</div>
+      <div class="hero-val sm">${warn.length}개</div>
+      <div class="hero-sub">전년 대비 -10% 이하 · 눌러서 목록 보기</div>
     </div>`;
-  }).join('');
+}
+// ════════ [1단계] 전년 대비 하락/상승 TOP5 ════════
+function renderMovers(data, idx){
+  if(idx<0) return;
+  const rows=storeRowsAt(data, idx).filter(x=>x.rate!=null);
+  const down=[...rows].sort((a,b)=>a.rate-b.rate).slice(0,5).filter(x=>x.rate<0);
+  const up=[...rows].sort((a,b)=>b.rate-a.rate).slice(0,5).filter(x=>x.rate>0);
+  const mon=MONTHS[idx];
+  document.getElementById('moverDownTitle').innerHTML=`<span style="color:#e05555;">▼</span> ${mon} 전년 대비 하락 TOP 5`;
+  document.getElementById('moverUpTitle').innerHTML=`<span style="color:#3db87a;">▲</span> ${mon} 전년 대비 상승 TOP 5`;
+  const maxAbs=Math.max(1,...rows.map(x=>Math.abs(x.rate)));
+  const item=(x,i)=>`<div class="mv-item" data-bname="${escapeAttr(x.b.name)}">
+      <span class="mv-rank">${i+1}</span>
+      <span class="mv-name"><span class="store-name">${x.b.name}</span><small>${x.b.manager}</small></span>
+      <span class="mv-bar"><i class="${x.rate>=0?'up':'dn'}" style="width:${Math.round(Math.abs(x.rate)/maxAbs*100)}%"></i></span>
+      <span class="mv-val">${fmt(x.cur)}</span>
+      <span class="mv-rate ${pctCls(x.rate)}">${pctTxt(x.rate)}</span>
+    </div>`;
+  const empty='<div style="padding:14px;color:#8aa6bf;font-size:12px;">해당 매장이 없어요</div>';
+  document.getElementById('moverDown').innerHTML=down.map(item).join('')||empty;
+  document.getElementById('moverUp').innerHTML=up.map(item).join('')||empty;
+  document.querySelectorAll('#moverDown .mv-item,#moverUp .mv-item').forEach(n=>n.addEventListener('click',function(){
+    const b=window.__allMap&&window.__allMap[this.dataset.bname]; if(b) openBranchModal(b);
+  }));
+}
+// ════════ [3단계] 매장 × 월 히트맵 ════════
+function renderHeatmap(data){
+  const el=document.getElementById('heatmap'); if(!el) return;
+  const last=getLastMonthIdx(data); if(last<0){ el.innerHTML=''; return; }
+  const months=[...Array(last+1).keys()];
+  const rows=data.map(b=>{
+    const rates=months.map(i=>{ const c=b.months[i]||0, p=get25(b.name,i); return (c>0&&p>0)?(c-p)/p*100:null; });
+    let streak=0; for(let i=last;i>=0;i--){ if(rates[i]!=null&&rates[i]<0) streak++; else break; }
+    return {b,rates,streak,lastRate:rates[last]};
+  }).filter(r=>r.rates.some(v=>v!=null));
+  const sort=(document.getElementById('hmSort')||{}).value||'streak';
+  const lr=r=>r.lastRate==null?999:r.lastRate;
+  if(sort==='streak') rows.sort((a,b)=>b.streak-a.streak||lr(a)-lr(b));
+  else if(sort==='last_asc') rows.sort((a,b)=>lr(a)-lr(b));
+  else if(sort==='last_desc') rows.sort((a,b)=>(b.lastRate??-999)-(a.lastRate??-999));
+  else rows.sort((a,b)=>a.b.name.localeCompare(b.b.name,'ko'));
+  const col=v=>v==null?'':v<=-10?'#c43c3c':v<=-3?'#8a3a3a':v<3?'#2a3a4c':v<10?'#2f6b46':'#3db87a';
+  const cols=`grid-template-columns:minmax(110px,1.4fr) repeat(${months.length},minmax(26px,1fr)) 74px;`;
+  let h=`<div class="hm-row hm-head" style="${cols}"><div>매장</div>${months.map(i=>`<div>${MONTHS[i]}</div>`).join('')}<div>연속 하락</div></div>`;
+  window.__hmRows=rows;
+  h+=rows.map((r,ri)=>`<div class="hm-row" style="${cols}">
+      <div class="hm-name store-name" data-ri="${ri}" title="${escapeAttr(r.b.name)} · ${escapeAttr(r.b.manager)}">${r.b.name}</div>
+      ${r.rates.map((v,i)=>`<div class="hm-cell${v==null?' hm-na':''}" style="${v==null?'':'background:'+col(v)}" title="${MONTHS[i]} 전년비 ${v==null?'비교 불가':pctTxt(v)}"></div>`).join('')}
+      <div class="hm-streak${r.streak>=3?' hot':''}">${r.streak?r.streak+'개월':'-'}</div>
+    </div>`).join('');
+  el.innerHTML=h;
+  el.querySelectorAll('.hm-name').forEach(n=>n.addEventListener('click',function(){
+    const b=window.__hmRows[+this.dataset.ri].b; if(b) openBranchModal(b);
+  }));
 }
 
 function renderMgr(data, lastIdx){
@@ -2841,8 +3017,12 @@ function renderMgr(data, lastIdx){
     const k=b.manager;
     const v=getBranchVal(b,lastIdx);
     if(v<=0) return;
-    if(!mgrs[k]) mgrs[k]={sum:0,cnt:0};
+    if(!mgrs[k]) mgrs[k]={sum:0,cnt:0,cur:0,prev:0,goalN:0,goalOk:0};
     mgrs[k].sum+=v; mgrs[k].cnt++;
+    // [3단계] 전년비(전년 데이터 있는 매장끼리) · 목표 달성 수
+    const v25=get25Val(b.name,lastIdx), goal=getGoalVal(b.name,lastIdx);
+    if(v25>0){ mgrs[k].cur+=v; mgrs[k].prev+=v25; }
+    if(goal>0){ mgrs[k].goalN++; if(v>=goal) mgrs[k].goalOk++; }
   });
   const entries=Object.entries(mgrs).sort((a,b)=>b[1].sum/b[1].cnt-a[1].sum/a[1].cnt);
   const maxAvg=Math.max(...entries.map(([,v])=>v.sum/v.cnt));
@@ -2850,11 +3030,13 @@ function renderMgr(data, lastIdx){
   el.innerHTML=entries.map(([k,v])=>{
     const a=Math.round(v.sum/v.cnt);
     const pct=Math.round(a/maxAvg*100);
-    const cls=a>=30000000?'pos':'neg';
+    const yoy=v.prev>0?(v.cur-v.prev)/v.prev*100:null;
+    const yoyTxt=yoy==null?'-':(yoy>=0?'+':'')+yoy.toFixed(1)+'%';
     return `<div class="mgr-card">
       <div class="mgr-name">${k}</div>
-      <div class="mgr-row"><span class="mgr-val ${cls}">${fmt(a)}</span><span class="mgr-cnt">${v.cnt}개점</span></div>
+      <div class="mgr-row"><span class="mgr-val">${fmt(a)}</span><span class="mgr-cnt">${v.cnt}개점</span></div>
       <div class="mgr-bar"><div class="mgr-bf" style="width:${pct}%;"></div></div>
+      <div class="mgr-sub">전년비 <b class="${yoy==null?'':yoy>=0?'pos':'neg'}">${yoyTxt}</b> · 목표 달성 <b>${v.goalOk}/${v.goalN}</b></div>
     </div>`;
   }).join('');
 }
@@ -2867,16 +3049,23 @@ function renderRegionAvg(data, lastIdx){
     if(!map[b.region]) map[b.region]={sum:0,cnt:0};
     map[b.region].sum+=v; map[b.region].cnt++;
   });
-  const entries=Object.entries(map).sort((a,b)=>b[1].sum/b[1].cnt-a[1].sum/a[1].cnt);
-  const maxA=entries.length?entries[0][1].sum/entries[0][1].cnt:1;
+  // [3단계] 매장 3개 미만 지역은 평균이 크게 흔들리므로 아래로 보내고 흐리게 표시
+  const SMALL=3;
+  const entries=Object.entries(map).sort((a,b)=>{
+    const sa=a[1].cnt<SMALL, sb=b[1].cnt<SMALL;
+    if(sa!==sb) return sa?1:-1;
+    return b[1].sum/b[1].cnt-a[1].sum/a[1].cnt;
+  });
+  const maxA=entries.length?Math.max(...entries.map(([,v])=>v.sum/v.cnt)):1;
   const el=document.getElementById('regionList');
   el.innerHTML=entries.map(([region,v])=>{
     const avg=Math.round(v.sum/v.cnt);
     const pct=Math.round(avg/maxA*100);
     const col=avg>=30000000?'#3db87a':avg>=24000000?'#f0a04a':'#e05555';
-    return `<div style="margin-bottom:7px;">
+    const small=v.cnt<SMALL;
+    return `<div style="margin-bottom:7px;${small?'opacity:.45;':''}" ${small?'title="매장 수가 적어 참고용"':''}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-        <span style="font-size:10px;color:#c8dff0;">${region} <span style="color:#6b8fa8;font-size:9px;">${v.cnt}개점</span></span>
+        <span style="font-size:11px;color:#c8dff0;">${region} <span class="rg-cnt">${v.cnt}개점</span>${small?' <span style="font-size:10px;color:#8aa6bf;">참고</span>':''}</span>
         <span style="font-size:11px;font-weight:600;color:#e0f0ff;">${fmt(avg)}</span>
       </div>
       <div style="background:#1a2f44;border-radius:3px;height:4px;">
@@ -2911,7 +3100,8 @@ function renderBranches(lastIdx){
       r=Math.round(cur/goal*100);
       cls=r>=100?'ok':r>=90?'wr':'fl';
       lbl=r>=100?'달성':'미달';
-      bc=r>=100?'#3db87a':r>=90?'#f0a04a':'#e05555';
+      // [3단계] 막대는 달성 매장만 초록, 나머지는 차분한 파랑 (미달 정도는 배지 색으로 구분)
+      bc=r>=100?'#3db87a':'#3a6f9e';
     }
     const fill=Math.min(r||Math.min(100,Math.round(cur/30000000*100)),130);
     const yoyStr=v25>0?((cur-v25)/v25*100).toFixed(1)+'%':'-';
@@ -3064,15 +3254,18 @@ function render(){
   renderTrend(data);
   renderDist(data, lastIdx);
   renderGrow(data);
-  renderPie(data, lastIdx);
+  // [1단계] 기준 달: 특정 월을 골랐으면 그 달, '평균' 탭이면 가장 최근 달
+  const heroIdx = lastIdx>=0 ? lastIdx : autoIdx;
+  renderHero(data, heroIdx, lastIdx===-2);
+  renderMovers(data, heroIdx);
   renderMgr(data, lastIdx);
   renderRegionAvg(data, lastIdx);
+  renderHeatmap(data);
   renderLogChart();
   document.getElementById('distTitle').textContent=`매출 구간 분포 (${monthLabel} 기준)`;
-  document.getElementById('rankTitle').textContent=`${monthLabel} 매출 순위 (상위 15개)`;
 
   requestAnimationFrame(()=>{
-    const rightCard=document.querySelector('.main-grid .card:nth-child(2)');
+    const rightCard=document.querySelector('.main-grid:not(.movers-grid) .card:nth-child(2)');
     const branchScroll=document.getElementById('branchList');
     if(rightCard&&branchScroll){
       const rightH=rightCard.getBoundingClientRect().height;
