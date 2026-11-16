@@ -666,22 +666,37 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .mgr-sub b{font-weight:700;color:#c8dff0;}
 .mgr-sub b.pos{color:#3db87a;} .mgr-sub b.neg{color:#e05555;}
 .rg-cnt{font-size:10px;color:#8aa6bf;background:#1a2f44;border-radius:4px;padding:0 5px;margin-left:3px;}
-/* [3단계] 히트맵 */
-.hm-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#8aa6bf;margin-bottom:8px;}
-.hm-legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px;}
-.hm-card{min-width:0;max-width:100%;overflow:hidden;}
-.hm-wrap{max-height:460px;overflow:auto;width:100%;}
-.hm-row{min-width:420px;}
-.hm-row{display:grid;gap:3px;align-items:center;margin-bottom:3px;}
-.hm-head{position:sticky;top:0;background:#111e2e;z-index:1;font-size:11px;color:#8aa6bf;text-align:center;padding:4px 0;}
-.hm-head>div:first-child{text-align:left;}
-.hm-name{font-size:12px;color:#c8dff0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;padding-right:6px;}
-.hm-name:hover{color:#fff;text-decoration:underline;}
-.hm-cell{height:20px;border-radius:3px;}
-.hm-na{background:repeating-linear-gradient(45deg,#16283c 0 3px,#111e2e 3px 6px) !important;}
-.hm-legend i.hm-na{border:0.5px solid #1e3347;}
-.hm-streak{font-size:11.5px;color:#8aa6bf;text-align:center;}
-.hm-streak.hot{color:#ff8a8a;font-weight:700;}
+/* [3단계] 매장 흐름 */
+.flow-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.flow-g{border-radius:10px;padding:12px 14px;cursor:pointer;border:1px solid transparent;transition:border-color .15s,transform .15s;}
+.flow-g:hover{transform:translateY(-1px);}
+.flow-g .fg-lbl{font-size:12.5px;font-weight:700;}
+.flow-g .fg-val{font-size:26px;font-weight:800;margin:2px 0;}
+.flow-g .fg-val small{font-size:13px;font-weight:600;margin-left:2px;}
+.flow-g .fg-desc{font-size:11px;opacity:.8;}
+.g-red{background:#2a1518;color:#ff8a8a;} .g-red.on{border-color:#e05555;}
+.g-amber{background:#2a2112;color:#f0b35a;} .g-amber.on{border-color:#f0a04a;}
+.g-gray{background:#16263a;color:#aac4e0;} .g-gray.on{border-color:#7eb8e8;}
+.g-green{background:#11261d;color:#5fd39a;} .g-green.on{border-color:#3db87a;}
+.flow-list-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#c8dff0;font-weight:600;padding:0 4px 6px;border-bottom:0.5px solid #1e3347;}
+.flow-legend{font-size:11px;color:#8aa6bf;font-weight:400;}
+.flow-legend .ln{display:inline-block;width:16px;height:0;vertical-align:middle;margin:0 4px 0 10px;}
+.flow-legend .ln.cur{border-top:2px solid #3db87a;} .flow-legend .ln.prev{border-top:1.5px dashed #5f7d95;}
+.flow-list{max-height:420px;overflow-y:auto;}
+.fl-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(120px,1.6fr) 90px 66px 92px;gap:14px;align-items:center;padding:8px 4px;border-bottom:0.5px solid #16283c;cursor:pointer;}
+.fl-row:hover{background:rgba(55,138,221,0.08);}
+.fl-name{font-size:12.5px;color:#e0f0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fl-name small{display:block;font-size:10.5px;color:#8aa6bf;margin-top:1px;}
+.spark{width:100%;height:30px;display:block;}
+.fl-val{font-size:12px;color:#c8dff0;text-align:right;}
+.fl-rate{font-size:13px;font-weight:700;text-align:right;}
+.fl-streak{font-size:11px;color:#ff8a8a;text-align:right;}
+@media (max-width:700px){
+  .flow-groups{grid-template-columns:1fr 1fr;}
+  .fl-row{grid-template-columns:minmax(0,1fr) 90px 60px;gap:8px;}
+  .fl-row .spark{grid-column:1 / -1;grid-row:2;}
+  .fl-row .fl-streak{display:none;}
+}
 /* [3단계] 물류 표: 스크롤 없이 전부 보이게 */
 .log-table-compact{max-height:none;min-width:0;}
 .log-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;}
@@ -2060,23 +2075,20 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
     </div>
   </div>
 
-  <!-- [3단계] 매장 × 월 히트맵: 칸 색 = 전년 같은 달 대비 증감 -->
-  <div class="card hm-card" style="margin-top:12px;">
+  <!-- [3단계] 매장 흐름: 상태별 그룹 카드 + 매장별 미니 그래프 -->
+  <div class="card flow-card" style="margin-top:12px;">
     <div class="ctitle">
-      <span>매장별 월간 흐름 <span class="mv-hint">칸 색 = 전년 같은 달 대비</span></span>
-      <select class="filter-sel" id="hmSort" onchange="renderHeatmap(filtered())">
-        <option value="streak">연속 하락 긴 순</option>
-        <option value="last_asc">최근 달 전년비 낮은 순</option>
-        <option value="last_desc">최근 달 전년비 높은 순</option>
+      <span id="flowTitle">매장 흐름</span>
+      <select class="filter-sel" id="flowSort" onchange="renderStoreFlowList()">
+        <option value="rate_asc">전년비 낮은 순</option>
+        <option value="rate_desc">전년비 높은 순</option>
+        <option value="sales_desc">매출 큰 순</option>
         <option value="name">매장명 순</option>
       </select>
     </div>
-    <div class="hm-legend">
-      <span><i style="background:#c43c3c"></i>-10% 이하</span><span><i style="background:#8a3a3a"></i>-3~-10%</span>
-      <span><i style="background:#2a3a4c"></i>±3%</span><span><i style="background:#2f6b46"></i>+3~+10%</span>
-      <span><i style="background:#3db87a"></i>+10% 이상</span><span><i class="hm-na"></i>비교 불가</span>
-    </div>
-    <div class="hm-wrap" id="heatmap"></div>
+    <div class="flow-groups" id="flowGroups"></div>
+    <div class="flow-list-head"><span id="flowListTitle"></span><span class="flow-legend"><i class="ln cur"></i>올해 <i class="ln prev"></i>작년</span></div>
+    <div class="flow-list" id="flowList"></div>
   </div>
 
   <!-- 물류 비중 분석 섹션 -->
@@ -2980,34 +2992,73 @@ function renderMovers(data, idx){
     const b=window.__allMap&&window.__allMap[this.dataset.bname]; if(b) openBranchModal(b);
   }));
 }
-// ════════ [3단계] 매장 × 월 히트맵 ════════
-function renderHeatmap(data){
-  const el=document.getElementById('heatmap'); if(!el) return;
-  const last=getLastMonthIdx(data); if(last<0){ el.innerHTML=''; return; }
-  const months=[...Array(last+1).keys()];
-  const rows=data.map(b=>{
-    const rates=months.map(i=>{ const c=b.months[i]||0, p=get25(b.name,i); return (c>0&&p>0)?(c-p)/p*100:null; });
-    let streak=0; for(let i=last;i>=0;i--){ if(rates[i]!=null&&rates[i]<0) streak++; else break; }
-    return {b,rates,streak,lastRate:rates[last]};
-  }).filter(r=>r.rates.some(v=>v!=null));
-  const sort=(document.getElementById('hmSort')||{}).value||'streak';
-  const lr=r=>r.lastRate==null?999:r.lastRate;
-  if(sort==='streak') rows.sort((a,b)=>b.streak-a.streak||lr(a)-lr(b));
-  else if(sort==='last_asc') rows.sort((a,b)=>lr(a)-lr(b));
-  else if(sort==='last_desc') rows.sort((a,b)=>(b.lastRate??-999)-(a.lastRate??-999));
-  else rows.sort((a,b)=>a.b.name.localeCompare(b.b.name,'ko'));
-  const col=v=>v==null?'':v<=-10?'#c43c3c':v<=-3?'#8a3a3a':v<3?'#2a3a4c':v<10?'#2f6b46':'#3db87a';
-  const cols=`grid-template-columns:minmax(110px,1.4fr) repeat(${months.length},minmax(26px,1fr)) 74px;`;
-  let h=`<div class="hm-row hm-head" style="${cols}"><div>매장</div>${months.map(i=>`<div>${MONTHS[i]}</div>`).join('')}<div>연속 하락</div></div>`;
-  window.__hmRows=rows;
-  h+=rows.map((r,ri)=>`<div class="hm-row" style="${cols}">
-      <div class="hm-name store-name" data-ri="${ri}" title="${escapeAttr(r.b.name)} · ${escapeAttr(r.b.manager)}">${r.b.name}</div>
-      ${r.rates.map((v,i)=>`<div class="hm-cell${v==null?' hm-na':''}" style="${v==null?'':'background:'+col(v)}" title="${MONTHS[i]} 전년비 ${v==null?'비교 불가':pctTxt(v)}"></div>`).join('')}
-      <div class="hm-streak${r.streak>=3?' hot':''}">${r.streak?r.streak+'개월':'-'}</div>
-    </div>`).join('');
-  el.innerHTML=h;
-  el.querySelectorAll('.hm-name').forEach(n=>n.addEventListener('click',function(){
-    const b=window.__hmRows[+this.dataset.ri].b; if(b) openBranchModal(b);
+// ════════ [3단계] 매장 흐름: 상태별 그룹 + 미니 그래프 ════════
+// 그룹 기준 (기준 달의 '전년 같은 달 대비')
+//  - 연속 하락: 기준 달까지 3개월 이상 연속 -3% 이하
+//  - 이번 달 하락: 기준 달 -3% 이하 (연속 3개월 미만)
+//  - 성장: 기준 달 +3% 이상
+//  - 안정: -3% ~ +3%
+const FLOW_GROUPS=[
+  {key:'streak', label:'3개월+ 연속 하락', desc:'꾸준히 빠지는 매장 · 방문 우선', cls:'g-red'},
+  {key:'drop',   label:'이번 달 하락',     desc:'최근에 빠지기 시작한 매장',     cls:'g-amber'},
+  {key:'stable', label:'안정',             desc:'전년과 비슷 (±3%)',             cls:'g-gray'},
+  {key:'grow',   label:'성장',             desc:'전년보다 +3% 이상',             cls:'g-green'},
+];
+window.__flowGroup = window.__flowGroup || 'streak';
+function renderStoreFlow(data, idx){
+  const el=document.getElementById('flowGroups'); if(!el||idx<0) return;
+  const rows=[]; let na=0;
+  data.forEach(b=>{
+    const rates=[]; for(let i=0;i<=idx;i++){ const c=b.months[i]||0, p=get25(b.name,i); rates.push((c>0&&p>0)?(c-p)/p*100:null); }
+    const r=rates[idx];
+    if(r==null){ if((b.months[idx]||0)>0) na++; return; }
+    let streak=0; for(let i=idx;i>=0;i--){ if(rates[i]!=null&&rates[i]<=-3) streak++; else break; }
+    const group= streak>=3?'streak' : r<=-3?'drop' : r>=3?'grow' : 'stable';
+    rows.push({b,rate:r,streak,group,cur:b.months[idx]||0});
+  });
+  window.__flow={rows,idx};
+  const mon=MONTHS[idx];
+  document.getElementById('flowTitle').innerHTML=`매장 흐름 <span class="mv-hint">${mon} 기준 · 전년 같은 달 대비${na?` · 비교 불가 ${na}개 제외`:''}</span>`;
+  el.innerHTML=FLOW_GROUPS.map(g=>{
+    const n=rows.filter(x=>x.group===g.key).length;
+    return `<div class="flow-g ${g.cls}${window.__flowGroup===g.key?' on':''}" onclick="window.__flowGroup='${g.key}';renderStoreFlow(filtered(),window.__flow.idx)">
+      <div class="fg-lbl">${g.label}</div><div class="fg-val">${n}<small>개</small></div><div class="fg-desc">${g.desc}</div></div>`;
+  }).join('');
+  renderStoreFlowList();
+}
+// 미니 그래프(SVG): 올해 실선 + 작년 점선, 1월~기준 달
+function flowSpark(b, idx){
+  const W=170,H=30, cur=[], prev=[];
+  for(let i=0;i<=idx;i++){ cur.push(b.months[i]||0); prev.push(get25(b.name,i)); }
+  const all=[...cur,...prev].filter(v=>v>0); if(!all.length) return '';
+  const mn=Math.min(...all), mx=Math.max(...all), n=Math.max(idx,1);
+  const pts=a=>a.map((v,i)=>v>0?`${(i/n*W).toFixed(1)},${(H-2-(v-mn)/((mx-mn)||1)*(H-4)).toFixed(1)}`:null);
+  const line=a=>{ let d='',pen=false; pts(a).forEach(p=>{ if(p){ d+=(pen?'L':'M')+p; pen=true; } else pen=false; }); return d; };
+  const up=(cur[idx]||0)>=(prev[idx]||0);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path d="${line(prev)}" fill="none" stroke="#5f7d95" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <path d="${line(cur)}" fill="none" stroke="${up?'#3db87a':'#e05555'}" stroke-width="2"/></svg>`;
+}
+function renderStoreFlowList(){
+  const f=window.__flow; if(!f) return;
+  const g=FLOW_GROUPS.find(x=>x.key===window.__flowGroup)||FLOW_GROUPS[0];
+  let list=f.rows.filter(x=>x.group===g.key);
+  const sort=(document.getElementById('flowSort')||{}).value||'rate_asc';
+  if(sort==='rate_asc') list.sort((a,b)=>a.rate-b.rate);
+  else if(sort==='rate_desc') list.sort((a,b)=>b.rate-a.rate);
+  else if(sort==='sales_desc') list.sort((a,b)=>b.cur-a.cur);
+  else list.sort((a,b)=>a.b.name.localeCompare(b.b.name,'ko'));
+  document.getElementById('flowListTitle').textContent=`${g.label} · ${list.length}개 매장`;
+  window.__flowList=list;
+  document.getElementById('flowList').innerHTML=list.map((x,i)=>`<div class="fl-row" data-i="${i}">
+      <span class="fl-name"><span class="store-name">${x.b.name}</span><small>${x.b.manager} · ${x.b.region}</small></span>
+      ${flowSpark(x.b, f.idx)}
+      <span class="fl-val">${fmt(x.cur)}</span>
+      <span class="fl-rate ${pctCls(x.rate)}">${pctTxt(x.rate)}</span>
+      <span class="fl-streak">${x.streak>=2?x.streak+'개월 연속↓':''}</span>
+    </div>`).join('') || '<div style="padding:18px;text-align:center;color:#8aa6bf;font-size:12px;">해당 매장이 없어요</div>';
+  document.querySelectorAll('#flowList .fl-row').forEach(r=>r.addEventListener('click',function(){
+    const x=window.__flowList[+this.dataset.i]; if(x) openBranchModal(x.b);
   }));
 }
 
@@ -3260,7 +3311,7 @@ function render(){
   renderMovers(data, heroIdx);
   renderMgr(data, lastIdx);
   renderRegionAvg(data, lastIdx);
-  renderHeatmap(data);
+  renderStoreFlow(data, heroIdx);
   renderLogChart();
   document.getElementById('distTitle').textContent=`매출 구간 분포 (${monthLabel} 기준)`;
 
