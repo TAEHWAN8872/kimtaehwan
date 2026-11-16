@@ -753,6 +753,10 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
   .bm-kpis{grid-template-columns:1fr 1fr;}
   .bm-diag{grid-template-columns:minmax(0,1fr);}
 }
+
+.bm-head{display:flex;gap:10px;align-items:flex-start;background:#12243a;border:0.5px solid #2a5a8a;border-radius:10px;padding:12px 14px;margin:4px 0 10px;font-size:14px;line-height:1.65;color:#e0f0ff;}
+.bm-head b{color:#fff;}
+.bm-hdot{flex:0 0 10px;height:10px;border-radius:50%;margin-top:7px;}
 </style>
 </head>
 <body>
@@ -2199,6 +2203,7 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
     <div class="modal-title" id="modalTitle">-</div>
     <div class="modal-sub" id="modalSub">-</div>
     <!-- [매장 상세 개선] 요약 지표 → 차트 → 진단/추천 → 월별 표 -->
+    <div id="modalHeadline" class="bm-head"></div>
     <div id="modalKpis" class="bm-kpis"></div>
     <div class="modal-cw"><canvas id="modalChart"></canvas></div>
     <div id="modalDiagnosis"></div>
@@ -3621,10 +3626,16 @@ function openBranchModal(b){
   }
   // 최근 3개월 vs 직전 3개월
   const r3=[],p3=[]; for(let i=lastI;i>=0;i--){ if(vals26[i]){ if(r3.length<3) r3.push(vals26[i]); else if(p3.length<3) p3.push(vals26[i]); } }
+  // 전월 대비 연속 상승/하락 개월
+  let mStreak=0,mDir=null;
+  for(let i=lastI;i>=1;i--){ const c=vals26[i],q=vals26[i-1]; if(!(c&&q)) break; const d=c>q?'up':c<q?'down':null; if(!d) break;
+    if(!mDir){mDir=d;mStreak=1;} else if(d===mDir) mStreak++; else break; }
+  const streakTxt=mStreak>=2?` · 전월 대비 <b>${mStreak}개월 연속 ${mDir==='up'?'상승':'하락'}</b>`:'';
+  let trendCh=null;
   if(r3.length===3&&p3.length===3){
-    const ch=(avgOf(r3)-avgOf(p3))/avgOf(p3)*100;
-    diag.push({t:tone(ch),h:'최근 추세',x:`최근 3개월 월평균 ${fmtD(Math.round(avgOf(r3)))} — 직전 3개월보다 <b>${pTxt(ch)}</b> ${ch>=3?'(오르는 중)':ch<=-3?'(내려가는 중)':'(보합)'}`});
-  }
+    trendCh=(avgOf(r3)-avgOf(p3))/avgOf(p3)*100;
+    diag.push({t:tone(trendCh),h:'최근 추세',x:`최근 3개월 월평균 ${fmtD(Math.round(avgOf(r3)))} — 직전 3개월보다 <b>${pTxt(trendCh)}</b> ${trendCh>=3?'(오르는 중)':trendCh<=-3?'(내려가는 중)':'(보합)'}${streakTxt}`});
+  } else if(streakTxt) diag.push({t:mDir==='up'?'green':'red',h:'최근 추세',x:streakTxt.replace(' · ','')});
   // 작년 특수 달
   const spikeMs=MONTHS.map((m,i)=>spike[i]&&i<=lastI&&vals26[i]?i:-1).filter(i=>i>=0);
   if(spikeMs.length){
@@ -3637,17 +3648,48 @@ function openBranchModal(b){
     diag.push({t:'amber',h:'비교 주의',x:`작년 ${MONTHS[open25]}에 오픈한 매장이에요. 작년 ${lowMs.map(i=>MONTHS[i]).join('·')}은 오픈 초기라 매출이 낮아서, 그 달의 전년비는 <b>실제보다 좋아 보여요</b> (진단에서 제외)`});
   }
   // 목표 달성
-  if(gN) diag.push({t:gOk/gN>=0.5?'green':gOk===0?'red':'amber',h:'목표 달성',x:`${gN}개월 중 <b>${gOk}개월</b> 목표(전년+5%) 달성`});
+  const gLast=goals&&goals[lastI], gLeft=(gLast&&vals26[lastI]<gLast)?gLast-vals26[lastI]:0;
+  if(gN) diag.push({t:gOk/gN>=0.5?'green':gOk===0?'red':'amber',h:'목표 달성',x:`${gN}개월 중 <b>${gOk}개월</b> 목표(전년+5%) 달성`+(gLast?(gLeft?` · ${MONTHS[lastI]}은 목표까지 <b>${fmtD(gLeft)}</b> 부족`:` · ${MONTHS[lastI]} 목표 달성 🎉`):'')});
+  // 지역 내 위치 (기존 '지역별 매출 비교' 박스에서 이동)
+  const regList=ALL.filter(st=>(st.region||'기타')===(b.region||'기타')).map(st=>({n:st.name,v:st.months[lastI]||0})).filter(x=>x.v>0).sort((a,c)=>c.v-a.v);
+  if(regList.length>1){
+    const rr=regList.findIndex(x=>x.n===b.name)+1, rAvg=regList.reduce((s,x)=>s+x.v,0)/regList.length;
+    const rd=(b.months[lastI]-rAvg)/rAvg*100;
+    diag.push({t:rr<=Math.ceil(regList.length*0.3)?'green':rr>Math.ceil(regList.length*0.7)?'red':'gray',h:'지역 내',x:`${b.region} ${regList.length}개 매장 중 <b>${rr}위</b> (${MONTHS[lastI]}) · 지역 평균 ${fmtD(Math.round(rAvg/10000))}보다 <b>${pTxt(rd)}</b>`});
+  }
   // 물류
   const hiMs=ratio.map((r,i)=>r!=null&&r>=38?i:-1).filter(i=>i>=0);
+  const stRatioAvg=st=>{ const L=LOGISTICS[st.name]||[]; const a=[]; for(let i=0;i<12;i++){ const s=st.months[i]||0,l=L[i]||0; if(s>0&&l>0) a.push(l/s*100);} return a.length?a.reduce((x,y)=>x+y,0)/a.length:null; };
+  const brandRatio=avgOf(ALL.map(stRatioAvg));
   if(avgRatio!=null){
     const ok=avgRatio>=32&&avgRatio<=36;
-    diag.push({t:ok?'green':avgRatio>36?'red':'amber',h:'물류비중',x:`평균 <b>${avgRatio.toFixed(1)}%</b> (적정 32~36%)${hiMs.length?` · 38% 이상인 달 ${hiMs.length}개 (${hiMs.map(i=>MONTHS[i]).join(', ')})`:''}`});
+    diag.push({t:ok?'green':avgRatio>36?'red':'amber',h:'물류비중',x:`평균 <b>${avgRatio.toFixed(1)}%</b> (적정 32~36%${brandRatio!=null?` · 복호두 평균 ${brandRatio.toFixed(1)}%`:''})${hiMs.length?` · 38% 이상인 달 ${hiMs.length}개 (${hiMs.map(i=>MONTHS[i]).join(', ')})`:''}`});
     if(avgRatio>36) acts.push('물류비중 높음: 폐기량·레시피 준수·발주량 점검');
     else if(hiMs.length>=2) acts.push(`물류비중이 38%를 넘는 달이 잦음(${hiMs.map(i=>MONTHS[i]).join('·')}): 해당 월 발주·폐기 내역 확인`);
     else if(avgRatio<30) acts.push('물류비중이 낮음: 레시피 기준량 준수 여부 확인(품질 저하 가능성)');
   }
   if(!acts.length) acts.push('특이사항 없음 — 현재 운영 유지, 월 1회 정기 점검');
+  // ── 한 줄 요약: 진단 결과를 문장으로 (같은 데이터면 항상 같은 문장) ──
+  let bc=0,bp=0; for(let i=0;i<=lastI;i++){ if(vals26[i]&&vals25&&vals25[i]&&!lowBase[i]&&brand.yoy[i]!=null){ ALL.forEach(st=>{const v=st.months[i]||0,q=get25(st.name,i); if(v>0&&q>0){bc+=v;bp+=q;}}); } }
+  const bYtd=bp>0?(bc-bp)/bp*100:null;
+  const S=[];
+  if(ytd!=null) S.push(`올해 누적 매출은 전년 대비 <b>${pTxt(ytd)}</b>${bYtd!=null?` (복호두 전체 ${pTxt(bYtd)})`:''}.`);
+  else {
+    // 작년과 비교할 수 없는 매장: 복호두 매장 평균과 비교
+    const bAvg=brand.avg[lastI], vs=bAvg?(vals26[lastI]-bAvg)/bAvg*100:null;
+    S.push(`작년과 비교하기 어려운 신규 매장이에요. ${MONTHS[lastI]} 매출은 ${fmtD(vals26[lastI])}${vs!=null?`, 복호두 매장 평균 대비 <b>${pTxt(vs)}</b>`:''}.`);
+  }
+  if(gap!=null) S.push(gap<=-5?`최근 브랜드 평균보다 <b>${Math.abs(gap).toFixed(1)}%p 더 부진</b>해서 매장 자체 점검이 필요해요.`
+                     :gap>=5?`최근 브랜드 평균보다 <b>${gap.toFixed(1)}%p 좋은</b> 흐름이에요.`
+                     :`최근 흐름은 브랜드 전체와 비슷해요.`);
+  if(spike[lastI]) S.push(`${MONTHS[lastI]} 전년비(${pTxt(sYoy[lastI])})는 작년 특수 달과 비교한 영향이 커요.`);
+  if(trendCh!=null&&trendCh>=3) S.push(`최근 3개월은 상승세예요.`);
+  else if(trendCh!=null&&trendCh<=-3) S.push(`최근 3개월은 하락세예요.`);
+  if(avgRatio!=null&&avgRatio>36) S.push(`물류비중이 평균 <b>${avgRatio.toFixed(1)}%</b>로 적정(32~36%)보다 높아요.`);
+  const headTone=gap!=null?(gap<=-5?'red':gap>=5?'green':'gray'):(ytd!=null?tone(ytd):'gray');
+  document.getElementById('modalHeadline').innerHTML=`<span class="bm-hdot" style="background:${{red:'#e05555',green:'#3db87a',gray:'#7eb8e8'}[headTone]}"></span><span>${S.join(' ')}</span>`;
+  // 카톡 공유용: 요약 문장 + 추천 액션 (HTML 태그 제거)
+  window.__bmShare={summary:S.join(' ').replace(/<[^>]+>/g,''), actions:acts.slice(0,3)};
   const TC={red:'#e05555',green:'#3db87a',amber:'#f0a04a',gray:'#7eb8e8'};
   document.getElementById('modalDiagnosis').innerHTML=`
     <div class="bm-diag">
@@ -3807,7 +3849,9 @@ function openBranchModal(b){
     // ── 전체 정보를 195자 단위로 나눠서 여러 번에 걸쳐 보낼 수 있도록 청크로 분할 ──
     const BUDGET = 195;
     const header = `📊 [복호두 ${b.name}]`;
-    const insightPlain = lines.map(l => l.replace(/<[^>]+>/g, ''));
+    // 공유 문구: 무작위 문장 대신 새 진단의 한 줄 요약 + 추천 액션
+    const sh = window.__bmShare || {summary:'', actions:[]};
+    const insightPlain = [sh.summary, ...sh.actions.map((a,i)=>`✅ ${a}`)].filter(Boolean);
     const allParts = [header, salesLine, ...insightPlain, contractLine, royaltyLine];
 
     const chunks = [];
@@ -3835,176 +3879,8 @@ function openBranchModal(b){
       btn.textContent = taggedChunks.length > 1 ? `💬 카톡공유 (1/${taggedChunks.length})` : '💬 카톡공유';
     }
 
-    insightEl.innerHTML = `
-<div style="border-top:0.5px solid #1a2f44;padding-top:12px;background:linear-gradient(135deg,#0d1e30,#111e2e);border:0.5px solid #2a5a8a;border-radius:10px;padding:12px 14px;">
-  <div style="font-size:10px;color:#7eb8e8;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px;">✨ AI 매출 인사이트</div>
-  <div style="font-size:11px;color:#c8dff0;line-height:1.6;">${lines.map(l => `<div style="margin-bottom:4px;">${l}</div>`).join('')}</div>
-</div>`;
-
-    // ── 지역별 매출 비교 벤치마크 ─────────────────────
-    const regionEl = document.getElementById('modalRegionInsight') || (() => {
-      const el = document.createElement('div');
-      el.id = 'modalRegionInsight';
-      el.style.marginTop = '10px';
-      insightEl.parentNode.insertBefore(el, insightEl.nextSibling);
-      return el;
-    })();
-
-    if (curV == null) {
-      regionEl.innerHTML = '';
-    } else {
-      const regionName = b.region || '기타';
-      const regionStores = (window.ALL || ALL).filter(st => (st.region || '기타') === regionName);
-      const regionCurList = regionStores.map(st => ({ name: st.name, v: st.months[lastIdx] || 0 })).filter(x => x.v > 0);
-      regionCurList.sort((a, c) => c.v - a.v);
-      const regionRank = regionCurList.findIndex(x => x.name === b.name) + 1;
-      const regionAvgCur = regionCurList.length ? regionCurList.reduce((s, x) => s + x.v, 0) / regionCurList.length : 0;
-
-      const regionLines = [];
-      if (regionCurList.length > 1 && regionRank > 0) {
-        const pctR = Math.max(1, Math.round(regionRank / regionCurList.length * 100));
-        const diffPct = ((curV * 10000 - regionAvgCur) / regionAvgCur * 100);
-        const diffStr = diffPct >= 0
-          ? `<span style="color:#3db87a;">지역 평균보다 ▲${diffPct.toFixed(1)}% 높음</span>`
-          : `<span style="color:#e05555;">지역 평균보다 ▼${Math.abs(diffPct).toFixed(1)}% 낮음</span>`;
-        regionLines.push(`📍 <b>${regionName}</b> 지역 내 매출 순위: 전체 ${regionCurList.length}개 매장 중 <b>${regionRank}위</b> (상위 ${pctR}%)`);
-        regionLines.push(`지역 평균 매출(${fmtD(Math.round(regionAvgCur / 10000))}) 대비 ${diffStr}`);
-
-        // 지역 평균 대비 전월 성장률 비교
-        if (prevIdxStore >= 0 && momR !== null) {
-          const regionPrevList = regionStores.map(st => st.months[prevIdxStore] || 0).filter(v => v > 0);
-          const regionAvgPrev = regionPrevList.length ? regionPrevList.reduce((s, v) => s + v, 0) / regionPrevList.length : 0;
-          if (regionAvgPrev > 0) {
-            const regionMomR = (regionAvgCur - regionAvgPrev) / regionAvgPrev * 100;
-            const gapMom = momR - regionMomR;
-            const gapStr = gapMom >= 0
-              ? `<span style="color:#3db87a;">지역 평균 성장률(${regionMomR.toFixed(1)}%)보다 ${gapMom.toFixed(1)}%p 높음 — 지역 내 성장을 주도하고 있어요</span>`
-              : `<span style="color:#e05555;">지역 평균 성장률(${regionMomR.toFixed(1)}%)보다 ${Math.abs(gapMom).toFixed(1)}%p 낮음 — 지역 내에서 상대적으로 처지고 있어요</span>`;
-            regionLines.push(`이번 달 성장률 비교: ${gapStr}`);
-          }
-        }
-
-        if (regionRank === 1) {
-          regionLines.push(`🏆 이번 달 <b>${regionName} 지역 1위</b> 매장입니다`);
-        } else if (regionRank <= Math.ceil(regionCurList.length * 0.2)) {
-          regionLines.push(`지역 상위권(상위 20% 이내)에 속하는 우수 매장입니다`);
-        } else if (regionRank > Math.ceil(regionCurList.length * 0.8)) {
-          regionLines.push(`지역 내 하위권에 속해 있어 벤치마킹 및 개선 방안 검토가 필요해 보입니다`);
-        }
-      }
-
-      if (regionLines.length) {
-        regionEl.innerHTML = `
-<div style="background:linear-gradient(135deg,#0d2416,#0f2e1c);border:0.5px solid #22c55e;border-radius:10px;padding:12px 14px;">
-  <div style="font-size:10px;color:#86efac;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px;">🗺️ 지역별 매출 비교 분석</div>
-  <div style="font-size:11px;color:#dcfce7;line-height:1.7;">${regionLines.map(l => `<div style="margin-bottom:4px;">${l}</div>`).join('')}</div>
-</div>`;
-      } else {
-        regionEl.innerHTML = '';
-      }
-    }
-    const costEl = document.getElementById('modalCostInsight') || (() => {
-      const el = document.createElement('div');
-      el.id = 'modalCostInsight';
-      el.style.marginTop = '10px';
-      insightEl.parentNode.insertBefore(el, insightEl.nextSibling);
-      return el;
-    })();
-
-    if (logRatio === null) {
-      costEl.innerHTML = '';
-    } else {
-      const bucket = LOG_BUCKETS.find(bk => logRatio >= bk.min && logRatio < bk.max) || null;
-      const IDEAL_MIN = 32, IDEAL_MAX = 36; // CJ물류 기준 이상적인 물류비중 구간
-
-      // 최근 최대 3개월 물류비중 평균 + 이상적 구간 비교
-      const ratioTrend = [];
-      for (let k = 2; k >= 0; k--) {
-        const idx = lastIdx - k;
-        if (idx < 0) continue;
-        const lv = (logData && logData[idx]) || 0;
-        const sv = b.months[idx] || 0;
-        if (sv > 0 && lv > 0) ratioTrend.push(lv / sv * 100);
-      }
-      let trendLine = '';
-      if (ratioTrend.length >= 1) {
-        const threeMoAvg = ratioTrend.reduce((s, v) => s + v, 0) / ratioTrend.length;
-        const trendBucket = LOG_BUCKETS.find(bk => threeMoAvg >= bk.min && threeMoAvg < bk.max) || null;
-        const verdict = (threeMoAvg >= IDEAL_MIN && threeMoAvg <= IDEAL_MAX)
-          ? `<span style="color:#3db87a;">이상적인 범위(32~36%)</span>`
-          : (trendBucket ? `<span style="color:${trendBucket.guideColor};">${trendBucket.guide}</span>` : '');
-        trendLine = `최근 ${ratioTrend.length}개월간 물류비중은 평균 <b>${threeMoAvg.toFixed(1)}%</b>입니다 — 이상적인 물류비중(${IDEAL_MIN}~${IDEAL_MAX}%)과 비교하면 ${verdict}`;
-      }
-
-      // 프랜차이즈 전체 매장 대비 벤치마크 (당월 매출 기준)
-      const salesArr = [];
-      (window.ALL || ALL).forEach(st => {
-        const sv = st.months[lastIdx] || 0;
-        if (sv > 0) salesArr.push({ name: st.name, v: sv });
-      });
-      salesArr.sort((a, c) => c.v - a.v);
-      const salesRank = salesArr.findIndex(s => s.name === b.name) + 1;
-      const avgSales = salesArr.length ? salesArr.reduce((s, x) => s + x.v, 0) / salesArr.length : 0;
-
-      // 매장 자체 평균 물류비중 (데이터가 있는 전체 개월 평균) — 프랜차이즈 평균과 "평균 대 평균"으로 비교하기 위함
-      const storeAvgRatioOf = (st) => {
-        const stLog = LOGISTICS[st.name] || [];
-        const arr = [];
-        for (let i = 0; i < 12; i++) {
-          const sv = st.months[i] || 0;
-          const lv = stLog[i] || 0;
-          if (sv > 0 && lv > 0) arr.push(lv / sv * 100);
-        }
-        return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
-      };
-      const storeAvgRatio = storeAvgRatioOf(b);
-      const allStoreAvgRatios = (window.ALL || ALL).map(storeAvgRatioOf).filter(v => v != null);
-      const franchiseAvgRatio = allStoreAvgRatios.length
-        ? allStoreAvgRatios.reduce((s, v) => s + v, 0) / allStoreAvgRatios.length
-        : null;
-
-      const benchLines = [];
-      if (bucket) {
-        benchLines.push(`📦 이번 달 물류 비중 <b>${logRatio.toFixed(1)}%</b> → <span style="color:${bucket.guideColor};font-weight:700;">${bucket.guide}</span> 구간`);
-      }
-      if (trendLine) benchLines.push(trendLine);
-      {
-        if (logRatio >= IDEAL_MIN && logRatio <= IDEAL_MAX) {
-          benchLines.push(`✅ 이번 달 물류비중이 이상적인 구간(${IDEAL_MIN}~${IDEAL_MAX}%) 안에 있습니다`);
-        } else if (logRatio < IDEAL_MIN) {
-          const diff = IDEAL_MIN - logRatio;
-          const g = bucket ? `<span style="color:${bucket.guideColor};">${bucket.guide}</span>` : '';
-          benchLines.push(`물류비중 ${logRatio.toFixed(1)}%로 이상적인 구간(${IDEAL_MIN}~${IDEAL_MAX}%)보다 ${diff.toFixed(1)}%p 낮습니다 — ${g}`);
-        } else {
-          const diff = logRatio - IDEAL_MAX;
-          const g = bucket ? `<span style="color:${bucket.guideColor};">${bucket.guide}</span>` : '';
-          benchLines.push(`물류비중 ${logRatio.toFixed(1)}%로 이상적인 구간(${IDEAL_MIN}~${IDEAL_MAX}%)보다 ${diff.toFixed(1)}%p 높습니다 — ${g}`);
-        }
-      }
-      if (storeAvgRatio != null && franchiseAvgRatio != null) {
-        const diffAvg = storeAvgRatio - franchiseAvgRatio;
-        const diffAvgStr = diffAvg >= 0
-          ? `<span style="color:#e05555;">평균보다 ${diffAvg.toFixed(1)}%p 높음</span>`
-          : `<span style="color:#3db87a;">평균보다 ${Math.abs(diffAvg).toFixed(1)}%p 낮음</span>`;
-        benchLines.push(`복호두 평균 물류비중(${franchiseAvgRatio.toFixed(1)}%) 대비 이 매장의 평균 물류비중(${storeAvgRatio.toFixed(1)}%)은 ${diffAvgStr}`);
-      }
-      if (salesArr.length > 1 && salesRank > 0) {
-        const pctS = Math.max(1, Math.round(salesRank / salesArr.length * 100));
-        const salesDiff = salesRaw > 0 ? ((salesRaw - avgSales) / avgSales * 100) : null;
-        benchLines.push(`이번 달 매출 순위: 전체 ${salesArr.length}개 매장 중 <b>${salesRank}위</b> (상위 ${pctS}%)` +
-          (salesDiff != null ? ` · 매장 평균 대비 ${salesDiff >= 0 ? '▲' : '▼'}${Math.abs(salesDiff).toFixed(1)}%` : ''));
-      }
-
-      if (benchLines.length) {
-        costEl.innerHTML = `
-<div style="background:linear-gradient(135deg,#1a1030,#241338);border:0.5px solid #7c3aed;border-radius:10px;padding:12px 14px;">
-  <div style="font-size:10px;color:#c4b5fd;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px;">📊 원가율(물류비중) · 복호두 전체 비교</div>
-  <div style="font-size:11px;color:#e5deff;line-height:1.7;">${benchLines.map(l => `<div style="margin-bottom:4px;">${l}</div>`).join('')}</div>
-</div>`;
-      } else {
-        costEl.innerHTML = '';
-      }
-    }
+    // 기존 'AI 매출 인사이트' · '지역별 매출 비교' · '원가율' 박스는 위 매출 진단으로 통합되어 표시하지 않음
+    insightEl.innerHTML = '';
   }
 }
 
