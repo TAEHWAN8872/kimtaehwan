@@ -762,6 +762,19 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 
 .bm-pill-b{color:#7eb8e8;background:rgba(126,184,232,.15);border-color:rgba(126,184,232,.5);}
 .bm-t td.v26.na{color:#8aa6bf;}
+
+/* ===== 상품별 매출 · 매장별 합계 (2026-11-17) ===== */
+.pr-group-chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#c8dff0;cursor:pointer;padding:4px 8px;border:0.5px solid #2a5a8a;border-radius:6px;background:#0f1f30;}
+.pr-group-chk input{accent-color:#378add;cursor:pointer;}
+.pr-group-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:#8aa6bf;margin:6px 0;}
+.pr-mini-btn{font-size:11px;padding:3px 9px;border-radius:5px;border:0.5px solid #2a5a8a;background:#0f1f30;color:#aac4e0;cursor:pointer;}
+.pr-mini-btn:hover{background:#1a3a5c;color:#fff;}
+.live-table.pr-grouped tr.pr-store-row td{background:#12243a;color:#e0f0ff;font-weight:700;border-top:1px solid #24405c;cursor:pointer;}
+.live-table.pr-grouped tr.pr-store-row:hover td{background:#173050;}
+.live-table.pr-grouped tr.pr-item-row td{color:#aac4e0;font-size:12px;}
+.pr-caret{display:inline-block;width:14px;color:#7eb8e8;}
+.pr-cnt{font-size:10.5px;font-weight:400;color:#8aa6bf;margin-left:4px;}
+.pr-pct{font-size:10.5px;color:#5f7d95;margin-left:3px;}
 </style>
 </head>
 <body>
@@ -1009,6 +1022,9 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
           <div id="livePrProductPanel" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:20;
             width:240px;background:#0d1b2a;border:1px solid #2a5a8a;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.4);"></div>
         </div>
+        <label id="livePrGroupWrap" class="pr-group-chk" title="매장마다 합계 줄을 넣고, 그 아래에 메뉴별 내역을 묶어서 보여줘요">
+          <input type="checkbox" id="livePrGroupStore" checked onchange="window.renderLivePrCurrentView()"> 매장별 합계
+        </label>
         <button class="live-refresh-btn" onclick="window.loadLiveProduct()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.loadLiveProduct(true)" title="원본 데이터를 다시 받아와서 최신 동기화 시각으로 갱신합니다 (66MB, 시간이 조금 더 걸려요)">🔃 최신 데이터로 새로고침</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveProductExcel()">⬇️ 엑셀 다운로드</button>
@@ -8829,6 +8845,13 @@ function isLivePrExcluded_(name){
     let totalQty = 0, totalAmount = 0;
     rows.forEach(r => { totalQty += r.qty; totalAmount += r.amount; });
 
+    // ── 매장별 합계 모드: 매장마다 합계 줄 + 그 아래 메뉴별 내역 ──
+    const groupChk = document.getElementById('livePrGroupStore');
+    if(groupChk && groupChk.checked){
+      window.renderLivePrGrouped_(wrap, rows, st, totalQty, totalAmount);
+      return;
+    }
+
     // ── 엑셀 다운로드용 데이터 캐시 (화면에 표시된 것과 동일한 필터/정렬 결과) ──
     window.__liveExportCache = window.__liveExportCache || {};
     window.__liveExportCache.product = {
@@ -8872,6 +8895,93 @@ function isLivePrExcluded_(name){
       </div>`;
   };
 
+  // ── 합계보기 · 매장별 합계 모드 ─────────────────────────────────
+  // rows: 이미 필터·정렬된 [매장×상품] 행. 매장 단위로 묶어서 '매장 합계' 줄을 먼저 보여주고
+  // 그 아래에 메뉴별 내역을 들여서 보여준다. 매장 합계 줄을 누르면 메뉴 내역을 접고 펼 수 있다.
+  // 정렬: 수량/금액 정렬이면 '매장 합계' 기준으로 매장 순서를 정하고, 매장 안의 메뉴도 같은 기준으로 정렬.
+  window.__livePrCollapsed = window.__livePrCollapsed || new Set();
+  window.renderLivePrGrouped_ = function(wrap, rows, st, totalQty, totalAmount){
+    const groups = [];
+    const byCode = {};
+    rows.forEach(r => {
+      if(!byCode[r.code]){ byCode[r.code] = { code:r.code, name:r.name, manager:r.manager, items:[], qty:0, amount:0 }; groups.push(byCode[r.code]); }
+      const g = byCode[r.code]; g.items.push(r); g.qty += r.qty; g.amount += r.amount;
+    });
+    if(st.key === 'qty' || st.key === 'amount') groups.sort((a,b) => st.dir * ((a[st.key]||0) - (b[st.key]||0)));
+    liveTenureSortInPlace_(groups);
+
+    // 엑셀: 매장 합계 줄 + 메뉴 줄
+    window.__liveExportCache = window.__liveExportCache || {};
+    const exRows = [['전체 합계','','', totalQty, totalAmount]];
+    groups.forEach(g => {
+      exRows.push([g.name, g.manager || '-', `매장 합계 (${g.items.length}개 메뉴)`, g.qty, g.amount]);
+      g.items.forEach(r => exRows.push([r.name, r.manager || '-', r.product, r.qty, r.amount]));
+    });
+    window.__liveExportCache.product = { header: ['매장명','담당자','상품명','수량','금액'], rows: exRows };
+
+    const sortArrow = (key) => st.key === key ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+    const sortTh = (key, label, align = 'right') =>
+      `<th style="text-align:${align};cursor:pointer;user-select:none;" onclick="window.livePrSortBy('${key}')" title="클릭해서 정렬">${label}${sortArrow(key)}</th>`;
+    const collapsed = window.__livePrCollapsed;
+    const share = v => totalAmount ? (v/totalAmount*100).toFixed(1)+'%' : '-';
+
+    const body = groups.map(g => {
+      const isCol = collapsed.has(g.code);
+      const head = `
+      <tr class="pr-store-row" onclick="window.toggleLivePrStore_('${escLivePr_(g.code)}')" title="눌러서 메뉴 내역 ${isCol?'펼치기':'접기'}">
+        <td style="text-align:left;"><span class="pr-caret">${isCol?'▸':'▾'}</span>${g.name}${liveTenureTag_(g.name)}</td>
+        <td style="text-align:center;color:#8fb8dd;">${g.manager || '-'}</td>
+        <td style="text-align:center;">매장 합계 <span class="pr-cnt">${g.items.length}개 메뉴 · 전체의 ${share(g.amount)}</span></td>
+        <td>${g.qty.toLocaleString()}</td>
+        <td class="grand-total">${g.amount.toLocaleString()}</td>
+      </tr>`;
+      if(isCol) return head;
+      return head + g.items.map(r => `
+      <tr class="pr-item-row">
+        <td></td><td></td>
+        <td style="text-align:center;">${r.product}</td>
+        <td>${r.qty.toLocaleString()}</td>
+        <td>${r.amount.toLocaleString()} <span class="pr-pct">${g.amount?Math.round(r.amount/g.amount*100):0}%</span></td>
+      </tr>`).join('');
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="pr-group-bar">
+        <span>${groups.length}개 매장 · ${rows.length}건</span>
+        <button type="button" class="pr-mini-btn" onclick="window.setLivePrCollapseAll_(true)">모두 접기</button>
+        <button type="button" class="pr-mini-btn" onclick="window.setLivePrCollapseAll_(false)">모두 펼치기</button>
+      </div>
+      <div class="live-table-card">
+        <div class="live-table-scroll">
+          <table class="live-table pr-grouped">
+            <thead><tr>
+              ${sortTh('name', `매장명 (${groups.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('product','상품명','center')}${sortTh('qty','수량')}${sortTh('amount','금액')}
+            </tr></thead>
+            <tbody>
+              <tr class="total-row">
+                <td>전체 합계</td><td></td><td></td>
+                <td>${totalQty.toLocaleString()}</td>
+                <td>${totalAmount.toLocaleString()}</td>
+              </tr>
+              ${body}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    window.__livePrGroupCodes = groups.map(g => g.code);
+  };
+  window.toggleLivePrStore_ = function(code){
+    const s = window.__livePrCollapsed;
+    if(s.has(code)) s.delete(code); else s.add(code);
+    window.renderLiveProductTable();
+  };
+  window.setLivePrCollapseAll_ = function(collapse){
+    const s = window.__livePrCollapsed;
+    s.clear();
+    if(collapse) (window.__livePrGroupCodes || []).forEach(c => s.add(c));
+    window.renderLiveProductTable();
+  };
+
   // 체크박스로 여러 상품을 함께 선택했을 때, 합계수량 칸에 상품별 낱개 판매량과
   // 전체 합계를 같이 보여주기 위한 공용 헬퍼. 선택된 상품이 1개 이하면 기존처럼
   // 숫자만 보여준다.
@@ -8892,6 +9002,7 @@ function isLivePrExcluded_(name){
   window.switchLivePrViewMode = function(){
     const mode = document.getElementById('livePrViewMode') ? document.getElementById('livePrViewMode').value : 'summary';
     document.getElementById('livePrTableWrap').style.display = (mode === 'summary') ? '' : 'none';
+    document.getElementById('livePrGroupWrap').style.display = (mode === 'summary') ? '' : 'none'; // '매장별 합계'는 합계보기 전용
     document.getElementById('livePrDailyTableWrap').style.display = (mode === 'daily') ? '' : 'none';
     document.getElementById('livePrMonthlyTableWrap').style.display = (mode === 'monthly') ? '' : 'none';
     document.getElementById('livePrAllTableWrap').style.display = (mode === 'all') ? '' : 'none';
