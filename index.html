@@ -775,6 +775,13 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .pr-caret{display:inline-block;width:14px;color:#7eb8e8;}
 .pr-cnt{font-size:10.5px;font-weight:400;color:#8aa6bf;margin-left:4px;}
 .pr-pct{font-size:10.5px;color:#5f7d95;margin-left:3px;}
+
+/* 상품별 매출 툴바: 한 줄 정리 (동기화 문구는 아래로) */
+.pr-toolbar{gap:8px;margin-bottom:4px;}
+.pr-toolbar .live-refresh-btn{padding:6px 11px;}
+.pr-tb-btns{display:inline-flex;gap:6px;margin-left:auto;}
+.pr-updated{text-align:right;margin:0 4px 10px;}
+.pr-updated .live-updated-at{margin-left:0;}
 </style>
 </head>
 <body>
@@ -994,7 +1001,7 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 
     <!-- 🏷️ 상품별 매출: 기간 + 상품명으로 매장별 판매 내역 조회 -->
     <div id="liveProductSection" style="display:none;">
-      <div class="live-toolbar">
+      <div class="live-toolbar pr-toolbar">
         <label>보기</label>
         <select id="livePrViewMode" class="live-input" onchange="window.switchLivePrViewMode()">
           <option value="summary">합계보기</option>
@@ -1014,8 +1021,8 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
           <label>종료월</label>
           <input id="livePrEndMonth" type="month" class="live-input">
         </span>
-        <input id="livePrProductSearch" type="text" placeholder="상품명 검색... (비워두면 전체)" autocomplete="off"
-          oninput="window.renderLivePrCurrentView()" class="live-input" style="min-width:200px;">
+        <input id="livePrProductSearch" type="text" placeholder="상품명 검색 (비우면 전체)" autocomplete="off"
+          oninput="window.renderLivePrCurrentView()" class="live-input" style="width:150px;">
         <div style="position:relative;display:inline-block;">
           <button id="livePrProductPanelBtn" type="button" class="live-refresh-btn" style="padding:6px 12px;"
             onclick="window.toggleLivePrProductPanel()">🏷️ 메뉴 선택</button>
@@ -1025,18 +1032,16 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
         <label id="livePrGroupWrap" class="pr-group-chk" title="매장마다 합계 줄을 넣고, 그 아래에 메뉴별 내역을 묶어서 보여줘요">
           <input type="checkbox" id="livePrGroupStore" checked onchange="window.renderLivePrCurrentView()"> 매장별 합계
         </label>
-        <button class="live-refresh-btn" onclick="window.loadLiveProduct()">🔄 조회</button>
-        <button class="live-refresh-btn" onclick="window.loadLiveProduct(true)" title="원본 데이터를 다시 받아와서 최신 동기화 시각으로 갱신합니다 (66MB, 시간이 조금 더 걸려요)">🔃 최신 데이터로 새로고침</button>
-        <button class="live-refresh-btn" onclick="window.downloadLiveProductExcel()">⬇️ 엑셀 다운로드</button>
-        <input id="livePrStoreSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePrCurrentView()"
+        <input id="livePrStoreSearch" type="text" placeholder="매장명 검색" autocomplete="off" oninput="window.renderLivePrCurrentView()"
           onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveProduct();}"
-          class="live-input" style="min-width:160px;">
+          class="live-input" style="width:110px;">
         <label>담당자</label>
         <select id="livePrManagerSel" class="live-input" onchange="window.renderLivePrCurrentView()">
           <option value="all">전체</option>
         </select>
-        <span id="livePrUpdatedAt" class="live-updated-at"></span>
+        <span class="pr-tb-btns"><button class="live-refresh-btn" onclick="window.loadLiveProduct()">🔄 조회</button><button class="live-refresh-btn" onclick="window.loadLiveProduct(true)" title="최신 데이터로 새로고침 — 원본 데이터를 다시 받아와서 최신 동기화 시각으로 갱신합니다 (66MB, 시간이 조금 더 걸려요)">🔃 새로고침</button><button class="live-refresh-btn" onclick="window.downloadLiveProductExcel()" title="엑셀 다운로드">⬇️ 엑셀</button></span>
       </div>
+      <div class="pr-updated"><span id="livePrUpdatedAt" class="live-updated-at"></span></div>
       <div id="livePrLoading" class="live-loading" style="display:none;">
         <span class="spin"></span>상품별 매출 데이터를 가져오는 중입니다...
       </div>
