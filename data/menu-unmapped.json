@@ -1,27 +1,27 @@
 {
  "안내": "메뉴 목록(menu-products.json)에 없는데 판매량이 많은 상품입니다. 메뉴면 products에 추가, 아니면 ignoreExact/ignorePatterns에 추가하세요.",
- "updatedAt": "2026-11-18T00:47:23.562Z",
+ "updatedAt": "2026-11-18T01:17:55.640Z",
  "months": {
   "202610": [],
   "202611": [
    {
-    "name": "앙버터 호두과자",
-    "qty": 256,
-    "stores": 22
-   },
-   {
     "name": "팥&앙버터 호두과자",
-    "qty": 239,
+    "qty": 269,
     "stores": 24
    },
    {
+    "name": "앙버터 호두과자",
+    "qty": 257,
+    "stores": 22
+   },
+   {
     "name": "팥 호두과자",
-    "qty": 163,
+    "qty": 164,
     "stores": 24
    },
    {
     "name": "앙버터호두과자",
-    "qty": 158,
+    "qty": 161,
     "stores": 13
    },
    {
@@ -31,7 +31,7 @@
    },
    {
     "name": "앙버터호두과자20알",
-    "qty": 108,
+    "qty": 110,
     "stores": 5
    },
    {
