@@ -1,43 +1,43 @@
 {
  "안내": "메뉴 목록(menu-products.json)에 없는데 판매량이 많은 상품입니다. 메뉴면 products에 추가, 아니면 ignoreExact/ignorePatterns에 추가하세요.",
- "updatedAt": "2026-11-20T01:18:04.358Z",
+ "updatedAt": "2026-11-20T02:18:14.744Z",
  "months": {
   "202610": [],
   "202611": [
    {
     "name": "앙버터 호두과자",
-    "qty": 356,
+    "qty": 360,
     "stores": 28
    },
    {
     "name": "팥&앙버터 호두과자",
-    "qty": 338,
+    "qty": 341,
     "stores": 26
    },
    {
     "name": "팥 호두과자",
-    "qty": 222,
+    "qty": 223,
     "stores": 28
    },
    {
     "name": "앙버터호두과자",
-    "qty": 202,
+    "qty": 205,
     "stores": 13
    },
    {
+    "name": "팥&앙버터호두과자",
+    "qty": 137,
+    "stores": 10
+   },
+   {
     "name": "앙버터호두과자20알",
-    "qty": 135,
+    "qty": 136,
     "stores": 6
    },
    {
-    "name": "팥&앙버터호두과자",
-    "qty": 131,
-    "stores": 9
-   },
-   {
     "name": "팥호두과자",
-    "qty": 124,
-    "stores": 10
+    "qty": 129,
+    "stores": 11
    },
    {
     "name": "(신)청사과 선물세트(호두육포)",
@@ -45,14 +45,14 @@
     "stores": 8
    },
    {
+    "name": "간식용 호두과자",
+    "qty": 119,
+    "stores": 15
+   },
+   {
     "name": "앙버터호두과자20개입",
     "qty": 118,
     "stores": 9
-   },
-   {
-    "name": "간식용 호두과자",
-    "qty": 117,
-    "stores": 15
    }
   ]
  }
