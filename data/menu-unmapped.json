@@ -1,6 +1,6 @@
 {
  "안내": "메뉴 목록(menu-products.json)에 없는데 판매량이 많은 상품입니다. 메뉴면 products에 추가, 아니면 ignoreExact/ignorePatterns에 추가하세요.",
- "updatedAt": "2026-11-22T23:26:56.932Z",
+ "updatedAt": "2026-11-23T00:17:41.419Z",
  "months": {
   "202610": [],
   "202611": [
@@ -46,7 +46,7 @@
    },
    {
     "name": "간식용 호두과자",
-    "qty": 143,
+    "qty": 144,
     "stores": 17
    },
    {
