@@ -800,6 +800,21 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .pd-tag-new{background:#1d4a33;color:#5fd39a;}
 .pd-basis{font-size:13.5px;font-weight:600;color:#e0f0ff;margin-left:6px;padding:5px 12px;border-radius:8px;background:#12243a;border:0.5px solid #2a5a8a;}
 .pd-basis b{font-weight:800;} .pd-b-a{color:#f0a04a;} .pd-b-b{color:#38bdf8;}
+
+/* ===== 날짜 입력칸 개선 (2026-11-23) =====
+   - 달력 아이콘: 다크모드(color-scheme:dark)에서 invert 필터가 겹쳐 아이콘이 어둡게 묻히던 문제 → 필터 제거, 밝은 버튼처럼 표시
+   - 칸 전체를 눌러도 달력이 열리도록 커서 표시 (동작은 하단 스크립트) */
+input[type="date"],input[type="month"]{color-scheme:dark;cursor:pointer;}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+#rtDateInput::-webkit-calendar-picker-indicator{filter:none !important;opacity:1 !important;cursor:pointer;width:15px;height:15px;padding:3px;margin-left:4px;border-radius:4px;background-color:rgba(126,184,232,.22);}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover{background-color:rgba(126,184,232,.45);}
+
+.dp-text{padding-right:30px !important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237eb8e8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 11h18'/%3E%3C/svg%3E") !important;background-repeat:no-repeat !important;background-position:right 8px center !important;background-size:16px 16px !important;font-variant-numeric:tabular-nums;letter-spacing:.3px;}
+.dp-date{width:128px;} .dp-month{width:104px;}
+.dp-text::placeholder{color:#4a6580;}
+.dp-text.dp-bad{border-color:#e05555 !important;box-shadow:0 0 0 2px rgba(224,85,85,.25);}
 </style>
 </head>
 <body>
@@ -1003,7 +1018,6 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
         <button class="live-refresh-btn" onclick="window.loadLivePeriod()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLivePeriodExcel()">⬇️ 엑셀 다운로드</button>
         <input id="livePdSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLivePeriodTable()"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLivePeriod();}"
           class="live-input" style="min-width:180px;">
         <label>담당자</label>
         <select id="livePdManagerSel" class="live-input" onchange="window.renderLivePeriodTable()">
@@ -1051,7 +1065,6 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
           <input type="checkbox" id="livePrGroupStore" checked onchange="window.renderLivePrCurrentView()"> 매장별 합계
         </label>
         <input id="livePrStoreSearch" type="text" placeholder="매장명 검색" autocomplete="off" oninput="window.renderLivePrCurrentView()"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveProduct();}"
           class="live-input" style="width:110px;">
         <label>담당자</label>
         <select id="livePrManagerSel" class="live-input" onchange="window.renderLivePrCurrentView()">
@@ -1103,7 +1116,6 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
         <button class="live-refresh-btn" onclick="window.loadLiveHour()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveHourExcel()">⬇️ 엑셀 다운로드</button>
         <input id="liveHrSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveHourTable()"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveHour();}"
           class="live-input" style="min-width:160px;">
         <label>담당자</label>
         <select id="liveHrManagerSel" class="live-input" onchange="window.renderLiveHourTable()">
@@ -1157,7 +1169,6 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
         <button class="live-refresh-btn" onclick="window.loadLiveSummary()">🔄 조회</button>
         <button class="live-refresh-btn" onclick="window.downloadLiveSummaryExcel()">⬇️ 엑셀 다운로드</button>
         <input id="liveSmSearch" type="text" placeholder="매장명 검색..." autocomplete="off" oninput="window.renderLiveSummaryTable()"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();window.loadLiveSummary();}"
           class="live-input" style="min-width:180px;">
         <label>담당자</label>
         <select id="liveSmManagerSel" class="live-input" onchange="window.renderLiveSummaryTable()">
@@ -19598,6 +19609,146 @@ body{background:#0a1628;color:#fff;font-family:'Pretendard','Noto Sans KR',sans-
     }
   };
 })();
+</script>
+
+<script>
+// ===== 날짜 입력칸 개선 (2026-11-23) =====
+// 브라우저 기본 날짜칸(type=date/month)은 크롬 한국어에서 연도를 6자리까지 받아서
+// '2026'을 쳐도 월로 안 넘어가고, 다크 화면에서 달력 아이콘도 잘 안 보였음.
+// → 일반 글자칸으로 바꾸고:
+//    · 숫자만 치면 자동으로 2026-11-02 (월은 2026-11) 형태로 하이픈을 넣어줌
+//    · 오른쪽 달력 아이콘을 누르면 달력이 열림 (숨겨둔 기본 날짜칸의 달력을 빌려 씀)
+//    · 날짜가 다 입력되면 바로 change 이벤트 → 기존 onchange 동작 그대로
+//    · 다 못 쓰고 나가면 이전 값으로 되돌림
+//  값 형식은 기존과 똑같이 'YYYY-MM-DD' / 'YYYY-MM' 이라 다른 코드는 그대로 동작
+(function(){
+  const pickers = {};
+  function getPicker(kind){
+    if(pickers[kind]) return pickers[kind];
+    const h = document.createElement('input');
+    h.type = kind; h.tabIndex = -1; h.setAttribute('aria-hidden','true');
+    h.__dpReady = true; // 달력용 숨김 칸은 글자칸으로 바꾸지 않음
+    h.style.cssText = 'position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;border:0;padding:0;color-scheme:dark;';
+    document.body.appendChild(h);
+    h.addEventListener('change', function(){
+      const el = h.__target; if(!el || !h.value) return;
+      el.value = h.value; fire(el);
+    });
+    return (pickers[kind] = h);
+  }
+  function isValid(v, kind){
+    if(kind === 'month'){ const m = /^(\d{4})-(\d{2})$/.exec(v); return !!m && +m[2]>=1 && +m[2]<=12; }
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if(!m) return false;
+    const d = new Date(+m[1], +m[2]-1, +m[3]);
+    return d.getFullYear()===+m[1] && d.getMonth()===+m[2]-1 && d.getDate()===+m[3];
+  }
+  function fire(el){
+    if(el.value === el.__dpLast) return;
+    el.__dpLast = el.value;
+    el.__dpOwn = true;
+    el.dispatchEvent(new Event('change', {bubbles:true}));
+    el.__dpOwn = false;
+  }
+  function openPicker(el){
+    const h = getPicker(el.__dpKind);
+    h.__target = el;
+    h.min = el.getAttribute('min') || ''; h.max = el.getAttribute('max') || '';
+    h.value = isValid(el.value, el.__dpKind) ? el.value : '';
+    const r = el.getBoundingClientRect();
+    h.style.left = r.left + 'px'; h.style.top = r.bottom + 'px';
+    try{ h.showPicker(); }catch(e){ try{ h.focus(); h.click(); }catch(_){} }
+  }
+  function setup(el){
+    if(el.__dpReady) return;
+    const kind = el.type === 'month' ? 'month' : 'date';
+    el.__dpReady = true; el.__dpKind = kind;
+    const v = el.value;
+    el.type = 'text';
+    el.value = v;
+    el.__dpLast = v;
+    el.inputMode = 'numeric';
+    el.autocomplete = 'off';
+    el.maxLength = kind === 'month' ? 7 : 10;
+    if(!el.placeholder) el.placeholder = kind === 'month' ? '예: 202611' : '예: 20261102';
+    el.classList.add('dp-text', kind === 'month' ? 'dp-month' : 'dp-date');
+    el.title = (kind === 'month' ? '숫자만 입력 (예: 202611)' : '숫자만 입력 (예: 20261102)') + ' · 오른쪽 달력 아이콘으로 선택';
+    // 브라우저가 보내는 change(칸을 벗어날 때)는 막고, 날짜가 다 써졌을 때만 우리가 보냄 → 중복 조회 방지
+    el.addEventListener('change', function(ev){ if(!el.__dpOwn) ev.stopImmediatePropagation(); }, true);
+    el.addEventListener('focus', function(){ el.__dpFocusVal = el.value; el.__dpLast = el.value; }); // 코드가 값을 바꿨을 수도 있으니 포커스 때 기준값 갱신
+    el.addEventListener('input', function(){
+      const d = el.value.replace(/\D/g,'').slice(0, kind === 'month' ? 6 : 8);
+      let out = d.slice(0,4);
+      if(d.length > 4) out += '-' + d.slice(4,6);
+      if(kind === 'date' && d.length > 6) out += '-' + d.slice(6,8);
+      el.value = out;
+      const full = kind === 'month' ? 7 : 10;
+      el.classList.toggle('dp-bad', out.length === full && !isValid(out, kind));
+      if(out.length === full && isValid(out, kind)) fire(el);
+    });
+    el.addEventListener('blur', function(){
+      if(el.value === '' ){ el.classList.remove('dp-bad'); if(el.__dpLast !== '') { fire(el); } return; }
+      if(!isValid(el.value, kind)){ el.value = el.__dpLast || el.__dpFocusVal || ''; el.classList.remove('dp-bad'); }
+    });
+    el.addEventListener('keydown', function(ev){ if(ev.key === 'Enter' && isValid(el.value, kind)) fire(el); });
+    // 오른쪽 달력 아이콘 영역(28px)을 누르면 달력 열기
+    el.addEventListener('mousedown', function(ev){
+      const r = el.getBoundingClientRect();
+      if(ev.clientX >= r.right - 28){ ev.preventDefault(); openPicker(el); }
+    });
+    el.addEventListener('mousemove', function(ev){
+      const r = el.getBoundingClientRect();
+      el.style.cursor = ev.clientX >= r.right - 28 ? 'pointer' : 'text';
+    });
+  }
+  function scan(){ document.querySelectorAll('input[type="date"],input[type="month"]').forEach(setup); }
+  scan();
+  let pending = false;
+  new MutationObserver(function(){
+    if(pending) return; pending = true;
+    requestAnimationFrame(function(){ pending = false; scan(); });
+  }).observe(document.body, {childList:true, subtree:true});
+})();
+</script>
+
+<script>
+// ===== 엔터로 조회 (2026-11-23) =====
+// · LIVE 매출 각 탭 툴바 안의 입력칸(매장명·상품명 검색, 날짜칸 등)에서 Enter → 그 툴바의 [조회]/[새로고침] 버튼을 누른 것과 같게
+//   (날짜칸은 날짜를 다 입력하고 Enter → 바로 조회)
+// · 매출 현황판 상단 매장 검색(branchSearch): Enter → 추천 목록 첫 번째 매장 선택
+// · 이미 Enter 동작이 있는 칸(AI 질문창, 기존 onkeydown 등)은 그대로 두고 건드리지 않음
+let __enterLast = { el:null, t:0 };
+document.addEventListener('keydown', function(ev){
+  if(ev.key !== 'Enter' || ev.defaultPrevented) return;
+  const el = ev.target;
+  if(!el || el.tagName !== 'INPUT') return;
+  if(/^(checkbox|radio|file|button|submit)$/.test(el.type)) return;
+
+  // 1) 매출 현황판 상단 매장 검색 → 추천 첫 번째 선택
+  if(el.id === 'branchSearch'){
+    const first = document.querySelector('#searchSuggestions > div');
+    const box = document.getElementById('searchSuggestions');
+    ev.preventDefault();
+    if(first && box && box.style.display !== 'none') first.click();
+    else if(typeof hideSuggestions === 'function') hideSuggestions();
+    return;
+  }
+
+  // 2) LIVE 툴바 → 같은 툴바의 조회 버튼
+  const bar = el.closest('.live-toolbar');
+  if(bar){
+    const btns = [...bar.querySelectorAll('button')];
+    const btn = btns.find(b => /window\.load\w*\(\)/.test(b.getAttribute('onclick') || '')) // 조회/새로고침 (원본 새로고침(true)는 제외)
+             || btns.find(b => /조회/.test(b.textContent));
+    if(!btn) return;
+    ev.preventDefault();
+    // 맥 한글 입력기는 Enter 한 번에 keydown이 두 번 올 수 있음 → 0.4초 안의 중복은 무시
+    const now = Date.now();
+    if(__enterLast.el === el && now - __enterLast.t < 400) return;
+    __enterLast = { el, t: now };
+    // 한글 조합 중(마지막 글자 입력 중)에 Enter를 눌러도 한 번에 조회되도록, 글자가 확정된 뒤 실행
+    setTimeout(function(){ btn.click(); }, ev.isComposing ? 30 : 0);
+  }
+});
 </script>
 </body>
 </html>
