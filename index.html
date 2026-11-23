@@ -782,6 +782,19 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .pr-tb-btns{display:inline-flex;gap:6px;margin-left:auto;}
 .pr-updated{text-align:right;margin:0 4px 10px;}
 .pr-updated .live-updated-at{margin-left:0;}
+
+/* ===== 기간별 매출 · 두 기간 비교: 기간 날짜 표시 (2026-11-23) ===== */
+.pd-range-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:12.5px;}
+.pd-chip{padding:5px 12px;border-radius:999px;border:0.5px solid;color:#e0f0ff;}
+.pd-chip b{margin-right:4px;}
+.pd-chip small{color:#8aa6bf;font-size:11px;}
+.pd-chip-a{background:rgba(240,160,74,.12);border-color:rgba(240,160,74,.5);} .pd-chip-a b{color:#f0a04a;}
+.pd-chip-b{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.5);} .pd-chip-b b{color:#38bdf8;}
+.pd-vs{color:#5f7d95;font-size:11px;}
+.pd-range-note{margin-left:auto;font-size:11px;color:#5f7d95;}
+.pd-th-range{font-size:10px;font-weight:400;color:#8aa6bf;}
+.pd-ab{display:inline-block;font-size:9px;font-weight:700;border-radius:3px;padding:0 3px;margin-right:3px;vertical-align:1px;}
+.pd-ab-a{color:#f0a04a;background:rgba(240,160,74,.15);} .pd-ab-b{color:#38bdf8;background:rgba(56,189,248,.15);}
 </style>
 </head>
 <body>
@@ -956,15 +969,15 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
           <option value="month">월별</option>
         </select>
         <span id="livePdDayWrap">
-          <label>시작일</label>
+          <label class="pd-a-lbl" data-base="시작일">시작일</label>
           <input id="livePdStartDate" type="date" class="live-input">
-          <label>종료일</label>
+          <label class="pd-a-lbl" data-base="종료일">종료일</label>
           <input id="livePdEndDate" type="date" class="live-input">
         </span>
         <span id="livePdMonthWrap" style="display:none;">
-          <label>시작월</label>
+          <label class="pd-a-lbl" data-base="시작월">시작월</label>
           <input id="livePdStartMonth" type="month" class="live-input">
-          <label>종료월</label>
+          <label class="pd-a-lbl" data-base="종료월">종료월</label>
           <input id="livePdEndMonth" type="month" class="live-input">
         </span>
         <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px;">
@@ -6470,6 +6483,8 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const mode = document.getElementById('livePdViewMode').value;
     document.getElementById('livePdCompareDayWrap').style.display = (on && mode === 'day') ? '' : 'none';
     document.getElementById('livePdCompareMonthWrap').style.display = (on && mode === 'month') ? '' : 'none';
+    // 비교 모드에서는 기간A 입력칸 라벨도 '기간A 시작일'처럼 표시해서 A/B 구분이 되게
+    document.querySelectorAll('.pd-a-lbl').forEach(l => { l.textContent = (on ? '기간A ' : '') + l.dataset.base; });
   };
 
   // 매출정리: 월별/기간별 필터 UI 전환
@@ -8114,8 +8129,28 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     for(let i = 0; i < colCount; i++){
       const labelA = unitsA[i] ? fmtUnit_(unitsA[i]) : '-';
       const labelB = unitsB[i] ? fmtUnit_(unitsB[i]) : '-';
-      offsetHeaderCells.push(`<th style="text-align:right;">${labelA}</th><th style="text-align:right;border-right:1px solid #1c3550;">${labelB}</th>`);
+      offsetHeaderCells.push(`<th style="text-align:right;"><span class="pd-ab pd-ab-a">A</span>${labelA}</th><th style="text-align:right;border-right:1px solid #1c3550;"><span class="pd-ab pd-ab-b">B</span>${labelB}</th>`);
     }
+
+    // ── 기간A/B가 어떤 날짜인지 표시 (예: 25.07.01~25.08.20 · 51일 / 25년 7월~8월 · 2개월) ──
+    const rangeTxt_ = (d) => {
+      const s = d.START, e = d.END;
+      const yy = v => v.slice(2,4), mm = v => v.slice(4,6), dd = v => v.slice(6,8);
+      if(isMonth){
+        const sm = `${yy(s)}년 ${+mm(s)}월`, em = `${yy(e)}년 ${+mm(e)}월`;
+        const n = liveMonthKeysInRange_(s, e).length;
+        return { short: sm===em ? sm : `${sm}~${em}`, len: `${n}개월` };
+      }
+      const n = Math.round((new Date(+s.slice(0,4), +mm(s)-1, +dd(s)) - new Date(+e.slice(0,4), +mm(e)-1, +dd(e))) / -86400000) + 1;
+      return { short: `${yy(s)}.${mm(s)}.${dd(s)}~${yy(e)}.${mm(e)}.${dd(e)}`, len: `${n}일` };
+    };
+    const rA = rangeTxt_(dataA), rB = rangeTxt_(dataB);
+    const rangeBar = `<div class="pd-range-bar">
+        <span class="pd-chip pd-chip-a"><b>기간A</b> ${rA.short} <small>· ${rA.len}</small></span>
+        <span class="pd-vs">vs</span>
+        <span class="pd-chip pd-chip-b"><b>기간B</b> ${rB.short} <small>· ${rB.len}</small></span>
+        <span class="pd-range-note">증감률 = 기간B ÷ 기간A − 1</span>
+      </div>`;
 
     // ── 엑셀 다운로드용 데이터 캐시 ──
     window.__liveExportCache = window.__liveExportCache || {};
@@ -8124,7 +8159,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       offsetHeaderExport.push(unitsA[i] ? `${fmtUnit_(unitsA[i])}(A)` : 'A');
       offsetHeaderExport.push(unitsB[i] ? `${fmtUnit_(unitsB[i])}(B)` : 'B');
     }
-    const exportHeader = ['매장명','담당자','기간A 합계','기간B 합계','증감률(%)', ...offsetHeaderExport];
+    const exportHeader = ['매장명','담당자',`기간A 합계(${rA.short})`,`기간B 합계(${rB.short})`,'증감률(%)', ...offsetHeaderExport];
     const exportTotalRow = ['전체 합계','', grandTotalA, grandTotalB, grandDiffPct===null?'':grandDiffPct,
       ...totalByOffsetA.flatMap((v,i) => [v, totalByOffsetB[i]])];
     const exportAvgRow = ['0원 매장 제외 평균매출','','','','',
@@ -8135,12 +8170,12 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     );
     window.__liveExportCache['period'] = { header: exportHeader, rows: [exportTotalRow, exportAvgRow, ...exportRows] };
 
-    wrap.innerHTML = `
+    wrap.innerHTML = `${rangeBar}
       <div class="live-table-card">
         <div class="live-table-scroll">
           <table class="live-table">
             <thead><tr>
-              ${sortTh('name', `매장명 (${rows.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('totalA','기간A 합계')}${sortTh('totalB','기간B 합계')}${sortTh('diff','증감률')}
+              ${sortTh('name', `매장명 (${rows.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('totalA',`기간A 합계<br><span class="pd-th-range">${rA.short}</span>`)}${sortTh('totalB',`기간B 합계<br><span class="pd-th-range">${rB.short}</span>`)}${sortTh('diff','증감률<br><span class="pd-th-range">B vs A</span>')}
               ${offsetHeaderCells.join('')}
             </tr></thead>
             <tbody>${totalRow}${avgRow}${bodyRows}</tbody>
