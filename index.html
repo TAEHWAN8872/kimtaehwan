@@ -795,6 +795,11 @@ details.fold summary{font-size:11.5px;color:#7eb8e8;cursor:pointer;padding:4px 0
 .pd-th-range{font-size:10px;font-weight:400;color:#8aa6bf;}
 .pd-ab{display:inline-block;font-size:9px;font-weight:700;border-radius:3px;padding:0 3px;margin-right:3px;vertical-align:1px;}
 .pd-ab-a{color:#f0a04a;background:rgba(240,160,74,.15);} .pd-ab-b{color:#38bdf8;background:rgba(56,189,248,.15);}
+
+.pd-tag{font-style:normal;font-size:10px;font-weight:700;margin-left:6px;padding:1px 6px;border-radius:4px;background:#1a2f44;color:#aac4e0;}
+.pd-tag-new{background:#1d4a33;color:#5fd39a;}
+.pd-basis{font-size:13.5px;font-weight:600;color:#e0f0ff;margin-left:6px;padding:5px 12px;border-radius:8px;background:#12243a;border:0.5px solid #2a5a8a;}
+.pd-basis b{font-weight:800;} .pd-b-a{color:#f0a04a;} .pd-b-b{color:#38bdf8;}
 </style>
 </head>
 <body>
@@ -8013,6 +8018,11 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
     const wrap = document.getElementById('livePdTableWrap');
     if(!dataA || !dataB){ wrap.innerHTML = ''; return; }
     const isMonth = viewMode === 'month';
+    // 증감률 기준: 날짜가 더 최근인 기간을 '최신', 다른 쪽을 '기준(이전)'으로 → 최신 ÷ 이전 − 1
+    // (기간A·B 어느 쪽에 최근 날짜를 넣어도 항상 "최근이 이전보다 얼마나 늘었나"로 계산)
+    const aIsNewer = (dataA.START > dataB.START) || (dataA.START === dataB.START && dataA.END > dataB.END);
+    const growth_ = (newV, oldV) => oldV > 0 ? Math.round((newV - oldV) / oldV * 1000) / 10 : null;
+    const pdDiff_ = (a, b) => aIsNewer ? growth_(a, b) : growth_(b, a);
     const sortState = window.__liveSortState.periodCompare;
     const WD = ['일','월','화','수','목','금','토'];
 
@@ -8078,7 +8088,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       grandTotalA += rowTotalA; grandTotalB += rowTotalB;
       const isError = (!r.infoA || r.infoA.error) && (!r.infoB || r.infoB.error);
       if(isError) errorCount++;
-      const diffPct = rowTotalA > 0 ? Math.round((rowTotalB - rowTotalA) / rowTotalA * 1000) / 10 : null;
+      const diffPct = pdDiff_(rowTotalA, rowTotalB);
       const cellsHtml = offsetVals.map(([vA, vB]) =>
         `<td class="${vA===0?'zero':''}">${vA===null?'-':vA.toLocaleString()}</td><td class="${vB===0?'zero':''}" style="border-right:1px solid #1c3550;">${vB===null?'-':vB.toLocaleString()}</td>`
       ).join('');
@@ -8105,7 +8115,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
 
     const avgByOffsetA = totalByOffsetA.map((sum, i) => storeCountByOffsetA[i] > 0 ? Math.round(sum / storeCountByOffsetA[i]) : 0);
     const avgByOffsetB = totalByOffsetB.map((sum, i) => storeCountByOffsetB[i] > 0 ? Math.round(sum / storeCountByOffsetB[i]) : 0);
-    const grandDiffPct = grandTotalA > 0 ? Math.round((grandTotalB - grandTotalA) / grandTotalA * 1000) / 10 : null;
+    const grandDiffPct = pdDiff_(grandTotalA, grandTotalB);
 
     const totalRow = `<tr class="total-row">
         <td>전체 합계${errorCount ? ` <span style="font-weight:400;color:#e0895c;">(조회실패 ${errorCount}개 제외)</span>` : ''}</td>
@@ -8145,11 +8155,14 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
       return { short: `${yy(s)}.${mm(s)}.${dd(s)}~${yy(e)}.${mm(e)}.${dd(e)}`, len: `${n}일` };
     };
     const rA = rangeTxt_(dataA), rB = rangeTxt_(dataB);
+    const newL = aIsNewer ? 'A' : 'B', oldL = aIsNewer ? 'B' : 'A';
+    const tagA = aIsNewer ? '<em class="pd-tag pd-tag-new">최신</em>' : '<em class="pd-tag">기준</em>';
+    const tagB = aIsNewer ? '<em class="pd-tag">기준</em>' : '<em class="pd-tag pd-tag-new">최신</em>';
     const rangeBar = `<div class="pd-range-bar">
-        <span class="pd-chip pd-chip-a"><b>기간A</b> ${rA.short} <small>· ${rA.len}</small></span>
+        <span class="pd-chip pd-chip-a"><b>기간A</b> ${rA.short} <small>· ${rA.len}</small>${tagA}</span>
         <span class="pd-vs">vs</span>
-        <span class="pd-chip pd-chip-b"><b>기간B</b> ${rB.short} <small>· ${rB.len}</small></span>
-        <span class="pd-range-note">증감률 = 기간B ÷ 기간A − 1</span>
+        <span class="pd-chip pd-chip-b"><b>기간B</b> ${rB.short} <small>· ${rB.len}</small>${tagB}</span>
+        <span class="pd-basis">📐 증감률 = <b class="pd-b-${newL.toLowerCase()}">기간${newL}</b>(최신) ÷ <b class="pd-b-${oldL.toLowerCase()}">기간${oldL}</b>(기준) − 1</span>
       </div>`;
 
     // ── 엑셀 다운로드용 데이터 캐시 ──
@@ -8175,7 +8188,7 @@ document.getElementById('logBucketModal').addEventListener('click',function(e){
         <div class="live-table-scroll">
           <table class="live-table">
             <thead><tr>
-              ${sortTh('name', `매장명 (${rows.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('totalA',`기간A 합계<br><span class="pd-th-range">${rA.short}</span>`)}${sortTh('totalB',`기간B 합계<br><span class="pd-th-range">${rB.short}</span>`)}${sortTh('diff','증감률<br><span class="pd-th-range">B vs A</span>')}
+              ${sortTh('name', `매장명 (${rows.length}개)`, 'center')}${sortTh('manager','담당자','center')}${sortTh('totalA',`기간A 합계<br><span class="pd-th-range">${rA.short}</span>`)}${sortTh('totalB',`기간B 합계<br><span class="pd-th-range">${rB.short}</span>`)}${sortTh('diff',`증감률<br><span class="pd-th-range">${newL} vs ${oldL}</span>`)}
               ${offsetHeaderCells.join('')}
             </tr></thead>
             <tbody>${totalRow}${avgRow}${bodyRows}</tbody>
