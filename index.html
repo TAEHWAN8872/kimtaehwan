@@ -815,6 +815,31 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover{background-color:rg
 .dp-date{width:128px;} .dp-month{width:104px;}
 .dp-text::placeholder{color:#4a6580;}
 .dp-text.dp-bad{border-color:#e05555 !important;box-shadow:0 0 0 2px rgba(224,85,85,.25);}
+
+/* 현황판 전용 달력 */
+.dp-pop{position:absolute;z-index:99999;width:252px;background:#0f1d2e;border:1px solid #2a5a8a;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:10px;font-size:12.5px;color:#e0f0ff;user-select:none;}
+.dp-pop button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;border-radius:6px;}
+.dp-pop button:disabled{opacity:.25;cursor:default;}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.dp-head button{width:28px;height:28px;font-size:18px;color:#7eb8e8;}
+.dp-head button:hover{background:#1a3a5c;}
+.dp-title{font-weight:700;font-size:13.5px;cursor:pointer;padding:3px 8px;border-radius:6px;}
+.dp-title:hover{background:#1a3a5c;}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.dp-wd{text-align:center;font-size:11px;color:#8aa6bf;padding:3px 0;}
+.dp-grid button{height:30px;}
+.dp-grid button:hover:not(:disabled){background:#1a3a5c;}
+.dp-grid button.out{color:#4a6580;}
+.dp-pop .sun{color:#ff8a8a;} .dp-pop .sat{color:#7eb8e8;}
+.dp-grid button.out.sun,.dp-grid button.out.sat{opacity:.5;}
+.dp-pop button.today{box-shadow:inset 0 0 0 1.5px #7eb8e8;}
+.dp-pop button.sel{background:#378add !important;color:#fff !important;font-weight:700;}
+.dp-months{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 0;}
+.dp-months button{height:38px;background:#12243a;}
+.dp-months button:hover:not(:disabled){background:#1a3a5c;}
+.dp-foot{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid #1e3347;}
+.dp-foot button{color:#7eb8e8;font-size:12px;padding:4px 8px;}
+.dp-foot button:hover{background:#1a3a5c;}
 </style>
 </head>
 <body>
@@ -19614,28 +19639,16 @@ body{background:#0a1628;color:#fff;font-family:'Pretendard','Noto Sans KR',sans-
 <script>
 // ===== 날짜 입력칸 개선 (2026-11-23) =====
 // 브라우저 기본 날짜칸(type=date/month)은 크롬 한국어에서 연도를 6자리까지 받아서
-// '2026'을 쳐도 월로 안 넘어가고, 다크 화면에서 달력 아이콘도 잘 안 보였음.
-// → 일반 글자칸으로 바꾸고:
-//    · 숫자만 치면 자동으로 2026-11-02 (월은 2026-11) 형태로 하이픈을 넣어줌
-//    · 오른쪽 달력 아이콘을 누르면 달력이 열림 (숨겨둔 기본 날짜칸의 달력을 빌려 씀)
-//    · 날짜가 다 입력되면 바로 change 이벤트 → 기존 onchange 동작 그대로
+// '2026'을 쳐도 월로 안 넘어가고, 기본 달력은 뜨는 위치를 정할 수 없었음.
+// → 일반 글자칸 + 현황판 전용 달력으로 교체
+//    · 숫자만 치면 자동으로 2026-11-02 (월 칸은 2026-11) 형태로 하이픈을 넣어줌
+//    · 오른쪽 달력 아이콘을 누르면 '그 칸 바로 아래'에 달력이 열림 (달력이 열려 있어도 숫자 입력 가능)
+//    · 날짜가 다 입력되거나 달력에서 고르면 바로 change 이벤트 → 기존 onchange 동작 그대로
 //    · 다 못 쓰고 나가면 이전 값으로 되돌림
 //  값 형식은 기존과 똑같이 'YYYY-MM-DD' / 'YYYY-MM' 이라 다른 코드는 그대로 동작
 (function(){
-  const pickers = {};
-  function getPicker(kind){
-    if(pickers[kind]) return pickers[kind];
-    const h = document.createElement('input');
-    h.type = kind; h.tabIndex = -1; h.setAttribute('aria-hidden','true');
-    h.__dpReady = true; // 달력용 숨김 칸은 글자칸으로 바꾸지 않음
-    h.style.cssText = 'position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;border:0;padding:0;color-scheme:dark;';
-    document.body.appendChild(h);
-    h.addEventListener('change', function(){
-      const el = h.__target; if(!el || !h.value) return;
-      el.value = h.value; fire(el);
-    });
-    return (pickers[kind] = h);
-  }
+  const pad = n => String(n).padStart(2,'0');
+  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
   function isValid(v, kind){
     if(kind === 'month'){ const m = /^(\d{4})-(\d{2})$/.exec(v); return !!m && +m[2]>=1 && +m[2]<=12; }
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if(!m) return false;
@@ -19649,15 +19662,92 @@ body{background:#0a1628;color:#fff;font-family:'Pretendard','Noto Sans KR',sans-
     el.dispatchEvent(new Event('change', {bubbles:true}));
     el.__dpOwn = false;
   }
-  function openPicker(el){
-    const h = getPicker(el.__dpKind);
-    h.__target = el;
-    h.min = el.getAttribute('min') || ''; h.max = el.getAttribute('max') || '';
-    h.value = isValid(el.value, el.__dpKind) ? el.value : '';
-    const r = el.getBoundingClientRect();
-    h.style.left = r.left + 'px'; h.style.top = r.bottom + 'px';
-    try{ h.showPicker(); }catch(e){ try{ h.focus(); h.click(); }catch(_){} }
+
+  // ── 전용 달력 팝업 ──
+  const pop = document.createElement('div');
+  pop.className = 'dp-pop'; pop.style.display = 'none';
+  document.body.appendChild(pop);
+  const S = { el:null, kind:'date', y:0, m:0, mode:'day' }; // mode: 'day'(날짜판) | 'month'(월판)
+  pop.addEventListener('mousedown', ev => ev.preventDefault()); // 달력을 눌러도 입력칸 포커스 유지 → 계속 타이핑 가능
+
+  function inRange(v){
+    const el = S.el; const mn = el.getAttribute('min'), mx = el.getAttribute('max');
+    if(mn && v < mn.slice(0, v.length)) return false;
+    if(mx && v > mx.slice(0, v.length)) return false;
+    return true;
   }
+  function render(){
+    const el = S.el; if(!el) return;
+    const cur = el.value, today = todayStr();
+    if(S.mode === 'month'){
+      let h = `<div class="dp-head"><button data-a="py">‹</button><span class="dp-title">${S.y}년</span><button data-a="ny">›</button></div><div class="dp-months">`;
+      for(let i=1;i<=12;i++){
+        const v = `${S.y}-${pad(i)}`;
+        const sel = cur.slice(0,7) === v && (S.kind==='month' || isValid(cur,'date'));
+        const now = today.slice(0,7) === v;
+        h += `<button data-a="pm" data-v="${v}" class="${sel?'sel':''} ${now?'today':''}" ${inRange(v)?'':'disabled'}>${i}월</button>`;
+      }
+      h += `</div><div class="dp-foot"><button data-a="clear">삭제</button>${S.kind==='month'?'<button data-a="thism">이번 달</button>':'<button data-a="back">날짜 선택으로</button>'}</div>`;
+      pop.innerHTML = h; return;
+    }
+    const first = new Date(S.y, S.m, 1), start = new Date(S.y, S.m, 1 - first.getDay());
+    let h = `<div class="dp-head"><button data-a="pm1">‹</button><span class="dp-title" data-a="tomonth" title="눌러서 월 선택">${S.y}년 ${S.m+1}월 ▾</span><button data-a="nm1">›</button></div>`;
+    h += '<div class="dp-grid">' + ['일','월','화','수','목','금','토'].map((d,i)=>`<span class="dp-wd ${i===0?'sun':i===6?'sat':''}">${d}</span>`).join('');
+    for(let i=0;i<42;i++){
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
+      const v = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const cls = [d.getMonth()!==S.m?'out':'', v===cur?'sel':'', v===today?'today':'', d.getDay()===0?'sun':d.getDay()===6?'sat':''].join(' ');
+      h += `<button data-a="pd" data-v="${v}" class="${cls}" ${inRange(v)?'':'disabled'}>${d.getDate()}</button>`;
+    }
+    h += `</div><div class="dp-foot"><button data-a="clear">삭제</button><button data-a="today">오늘</button></div>`;
+    pop.innerHTML = h;
+  }
+  function place(){
+    const el = S.el; if(!el) return;
+    const r = el.getBoundingClientRect();
+    const w = pop.offsetWidth, hgt = pop.offsetHeight;
+    let left = r.left + window.scrollX;
+    left = Math.min(left, window.scrollX + document.documentElement.clientWidth - w - 8);
+    let top = r.bottom + window.scrollY + 4;
+    if(r.bottom + hgt + 8 > window.innerHeight && r.top > hgt + 8) top = r.top + window.scrollY - hgt - 4; // 아래 공간 없으면 위로
+    pop.style.left = Math.max(window.scrollX + 4, left) + 'px';
+    pop.style.top = top + 'px';
+  }
+  function open(el){
+    S.el = el; S.kind = el.__dpKind; S.mode = S.kind === 'month' ? 'month' : 'day';
+    const base = isValid(el.value, S.kind) ? el.value : todayStr();
+    S.y = +base.slice(0,4); S.m = +base.slice(5,7) - 1;
+    pop.style.display = 'block'; render(); place();
+    el.focus();
+  }
+  function close(){ pop.style.display = 'none'; S.el = null; }
+  function pick(v){ const el = S.el; el.value = v; el.classList.remove('dp-bad'); fire(el); close(); }
+  pop.addEventListener('click', function(ev){
+    const b = ev.target.closest('[data-a]'); if(!b || b.disabled || !S.el) return;
+    const a = b.dataset.a;
+    if(a === 'pm1'){ S.m--; if(S.m<0){S.m=11;S.y--;} render(); }
+    else if(a === 'nm1'){ S.m++; if(S.m>11){S.m=0;S.y++;} render(); }
+    else if(a === 'py'){ S.y--; render(); }
+    else if(a === 'ny'){ S.y++; render(); }
+    else if(a === 'tomonth'){ S.mode = 'month'; render(); }
+    else if(a === 'back'){ S.mode = 'day'; render(); }
+    else if(a === 'pd'){ pick(b.dataset.v); }
+    else if(a === 'pm'){ if(S.kind === 'month') pick(b.dataset.v); else { S.y = +b.dataset.v.slice(0,4); S.m = +b.dataset.v.slice(5,7)-1; S.mode = 'day'; render(); } }
+    else if(a === 'today'){ pick(todayStr()); }
+    else if(a === 'thism'){ pick(todayStr().slice(0,7)); }
+    else if(a === 'clear'){ const el = S.el; el.value = ''; fire(el); close(); }
+    place();
+  });
+  document.addEventListener('mousedown', function(ev){
+    if(pop.style.display === 'none') return;
+    if(pop.contains(ev.target) || ev.target === S.el) return;
+    close();
+  }, true);
+  document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape' && pop.style.display !== 'none') close(); });
+  window.addEventListener('resize', () => { if(S.el) place(); });
+  window.addEventListener('scroll', () => { if(S.el) place(); }, true);
+
+  // ── 날짜칸 → 글자칸 변환 ──
   function setup(el){
     if(el.__dpReady) return;
     const kind = el.type === 'month' ? 'month' : 'date';
@@ -19683,17 +19773,27 @@ body{background:#0a1628;color:#fff;font-family:'Pretendard','Noto Sans KR',sans-
       el.value = out;
       const full = kind === 'month' ? 7 : 10;
       el.classList.toggle('dp-bad', out.length === full && !isValid(out, kind));
-      if(out.length === full && isValid(out, kind)) fire(el);
+      if(out.length === full && isValid(out, kind)){
+        fire(el);
+        if(S.el === el){ S.y = +out.slice(0,4); S.m = +out.slice(5,7)-1; render(); } // 달력이 열려 있으면 입력한 날짜로 이동
+      }
     });
     el.addEventListener('blur', function(){
+      if(S.el === el) return; // 달력 조작 중
       if(el.value === '' ){ el.classList.remove('dp-bad'); if(el.__dpLast !== '') { fire(el); } return; }
       if(!isValid(el.value, kind)){ el.value = el.__dpLast || el.__dpFocusVal || ''; el.classList.remove('dp-bad'); }
     });
-    el.addEventListener('keydown', function(ev){ if(ev.key === 'Enter' && isValid(el.value, kind)) fire(el); });
-    // 오른쪽 달력 아이콘 영역(28px)을 누르면 달력 열기
+    el.addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' && isValid(el.value, kind)){ fire(el); if(S.el === el) close(); }
+      if(ev.key === 'Tab' && S.el === el) close();
+    });
+    // 오른쪽 달력 아이콘 영역(28px)을 누르면 이 칸 바로 아래에 달력 열기 / 다시 누르면 닫기
     el.addEventListener('mousedown', function(ev){
       const r = el.getBoundingClientRect();
-      if(ev.clientX >= r.right - 28){ ev.preventDefault(); openPicker(el); }
+      if(ev.clientX >= r.right - 28){
+        ev.preventDefault();
+        if(S.el === el) close(); else open(el);
+      }
     });
     el.addEventListener('mousemove', function(ev){
       const r = el.getBoundingClientRect();
