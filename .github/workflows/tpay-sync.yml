@@ -136,6 +136,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: 지난 날짜 자동 채우기 (하루 1번, PC가 꺼져 있던 동안 빠진 날짜 재조회 — 이미 했으면 바로 건너뜀)
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+        run: node scripts/catchup.js
       - name: 일일 갱신 실행 (스케줄 or 수동-daily)
         if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
         env:
@@ -266,6 +271,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/live-daily.json data/product-daily.json data/receipt-today.json
+          if [ -f data/catchup-state.json ]; then git add data/catchup-state.json; fi
           if ls data/menu-*.json >/dev/null 2>&1; then git add data/menu-*.json; fi
           if [ -f data/product-category.json ]; then git add data/product-category.json; fi
           if [ -d data/hour ]; then git add data/hour/*.json; fi

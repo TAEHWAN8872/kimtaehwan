@@ -58,7 +58,9 @@ async function main() {
     // 구간 밖의 기존 데이터(과거 전체 이력)는 그대로 유지된다.
     const prev = stores[code] || { name, days: [] };
     const keptDays = (prev.days || []).filter((d) => d.SDA_DT < start || d.SDA_DT > end);
-    stores[code] = { name: prev.name || name, days: [...keptDays, ...result.days] };
+    // [2026-11-24] channelDays(채널별 매출)·todayRaw 등 다른 항목은 그대로 두고 days만 교체
+    // (이전에는 {name, days}로 통째로 바꿔서 채널별 매출 기록이 전부 지워지는 문제가 있었음)
+    stores[code] = { ...prev, name: prev.name || name, days: [...keptDays, ...result.days] };
 
     if (result.partialError) {
       failed.push(`${code}(${name}) 일부 구간 실패: ${result.partialError}`);

@@ -119,7 +119,8 @@ async function main() {
     // 지정한 구간에 해당하는 기존 행만 제거하고, 새로 받은 값으로 교체.
     // 구간 밖의 기존 데이터(과거 전체 이력)는 그대로 유지된다.
     const keptRows = (prev.rows || []).filter((r) => r[0] < start || r[0] > end);
-    stores[code] = { name: prev.name || name, rows: [...keptRows, ...compactNew] };
+    // [2026-11-24] todayRawRows 등 다른 항목은 그대로 두고 rows만 교체
+    stores[code] = { ...prev, name: prev.name || name, rows: [...keptRows, ...compactNew] };
 
     if (dayErrors.length > 0) {
       failed.push(`${code}(${name}) 일부 날짜 실패: ${dayErrors.join(' | ')}`);
