@@ -131,14 +131,14 @@ jobs:
         shell: bash
     steps:
       - name: Git bash 경로 등록 (윈도우 PC 실행기용 — 서비스 계정 PATH에 bash가 없어서)
-        # 이 단계만 윈도우 기본 PowerShell로 실행해서, 이후 단계(shell: bash)가 Git에 포함된 bash를 찾을 수 있게
-        # C:\Program Files\Git\bin 을 PATH에 추가한다 (GITHUB_PATH는 다음 단계부터 적용됨).
-        shell: powershell
+        # 이후 단계(shell: bash)가 Git에 포함된 bash를 찾을 수 있게 C:\Program Files\Git\bin 을
+        # PATH에 추가한다 (GITHUB_PATH는 다음 단계부터 적용됨).
+        # PowerShell은 PC의 스크립트 실행 정책(Restricted)에 막히므로 cmd로 실행.
+        shell: cmd
         run: |
-          $gitBin = "C:\Program Files\Git\bin"
-          if (-not (Test-Path "$gitBin\bash.exe")) { Write-Error "Git bash not found: $gitBin (install Git for Windows)"; exit 1 }
-          Add-Content -Path $env:GITHUB_PATH -Value $gitBin -Encoding ascii
-          Write-Output "Added to PATH: $gitBin"
+          if not exist "C:\Program Files\Git\bin\bash.exe" (echo Git bash not found - install Git for Windows & exit /b 1)
+          echo C:\Program Files\Git\bin>>"%GITHUB_PATH%"
+          echo Added to PATH: C:\Program Files\Git\bin
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
       - name: Node.js 설정
