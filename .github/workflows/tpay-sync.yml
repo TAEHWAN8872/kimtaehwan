@@ -139,8 +139,23 @@ jobs:
           if not exist "C:\Program Files\Git\bin\bash.exe" (echo Git bash not found - install Git for Windows & exit /b 1)
           echo C:\Program Files\Git\bin>>"%GITHUB_PATH%"
           echo Added to PATH: C:\Program Files\Git\bin
+      - name: 이전 실행에서 꼬인 git 상태 정리 (PC 실행기는 작업폴더가 남아 있어서)
+        # 예전 'git pull --rebase'가 충돌로 멈추면 .git/rebase-merge 가 남아,
+        # 이후 모든 실행의 커밋/푸시가 'already a rebase-merge directory'로 조용히 실패했다.
+        run: |
+          if [ -d .git ]; then
+            git rebase --abort 2>/dev/null || true
+            git merge --abort 2>/dev/null || true
+            rm -rf .git/rebase-merge .git/rebase-apply .git/index.lock
+            echo "git 상태 정리 완료"
+          else
+            echo "작업폴더에 .git 없음 — 정리할 것 없음"
+          fi
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
+        with:
+          # 대기열에 있던 실행도 '실행 시작 시점'의 최신 main을 받도록 (예전 커밋 기준으로 덮어쓰기 방지)
+          ref: main
       - name: Node.js 설정
         uses: actions/setup-node@v4
         with:
@@ -279,20 +294,34 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/live-daily.json data/product-daily.json data/receipt-today.json
-          if [ -f data/catchup-state.json ]; then git add data/catchup-state.json; fi
-          if ls data/menu-*.json >/dev/null 2>&1; then git add data/menu-*.json; fi
-          if [ -f data/product-category.json ]; then git add data/product-category.json; fi
-          if [ -d data/hour ]; then git add data/hour/*.json; fi
-          if git diff --cached --quiet; then
-            echo "변경 없음, 커밋 생략"
-          else
-            git commit -m "chore: tpay 매출 데이터 갱신 ($(date -u +'%Y-%m-%d %H:%M UTC'))"
-            for i in 1 2 3; do
-              git pull --rebase origin main && git push && break
-              echo "푸시 실패, 재시도 ($i/3)..."
-              sleep 5
+          # 이번 실행이 만든 데이터 파일만 따로 보관 → 최신 main으로 맞춘 뒤 다시 덮어써서 커밋.
+          # (JSON 데이터를 rebase로 합치면 충돌이 나서 멈추는 문제가 있었음 — 실행은 한 번에 하나씩만
+          #  돌고 매번 최신 main에서 시작하므로, 이번 결과로 덮어쓰는 게 맞다)
+          collect_files() {
+            for f in data/live-daily.json data/product-daily.json data/receipt-today.json data/catchup-state.json data/product-category.json data/menu-*.json data/hour/*.json; do
+              [ -f "$f" ] && echo "$f"
             done
+          }
+          BK="$RUNNER_TEMP/tpay-data-backup"
+          ok=0
+          for i in 1 2 3 4 5; do
+            rm -rf "$BK"; mkdir -p "$BK"
+            collect_files | while read -r f; do mkdir -p "$BK/$(dirname "$f")"; cp "$f" "$BK/$f"; done
+            git fetch origin main || { echo "fetch 실패, 재시도 ($i/5)"; sleep 10; continue; }
+            git reset --hard origin/main
+            cp -r "$BK/data/." data/
+            collect_files | xargs git add
+            if git diff --cached --quiet; then
+              echo "변경 없음, 커밋 생략"; ok=1; break
+            fi
+            git commit -q -m "chore: tpay 매출 데이터 갱신 ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+            if git push origin HEAD:main; then ok=1; echo "✅ 푸시 완료"; break; fi
+            echo "푸시 실패, 재시도 ($i/5)..."
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::데이터 커밋/푸시에 5번 모두 실패했습니다 — 현황판에 반영되지 않았어요"
+            exit 1
           fi
       - name: 백필 조기 종료 시 다음 구간 자동 이어받기 (수동-hour-backfill)
         if: github.event.inputs.mode == 'hour-backfill' && steps.hour_backfill.outputs.continue_start != ''

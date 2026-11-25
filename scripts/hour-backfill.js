@@ -246,6 +246,7 @@ async function main() {
   let totalDays = 0;
   let totalFailed = [];
   let totalMatchedOrders = 0, totalSkippedNoTime = 0, totalSkippedNoItems = 0, totalCarryOrders = 0, totalRawOrders = 0;
+  const skippedBadDates = []; // 품목 응답이 부실해서 저장을 건너뛴 날짜
   const stillZeroDates = []; // 재시도해도 끝내 0건이었던 날짜(진짜 휴무 or API 문제 — 나중에 수동 확인 권장)
   let consecutiveStillZero = 0; // 연속으로 "재시도해도 0건"인 날짜 수 — 조기 종료 판단용
   let abortedAt = null; // 조기 종료했다면 그 시작 날짜(재실행 시 START로 쓸 값)
@@ -282,12 +283,27 @@ async function main() {
       consecutiveStillZero = 0;
     }
 
+    // [2026-11-25 추가: 부실 응답 덮어쓰기 방지] 지난 날짜 자동 채우기(catchup) 안에서
+    // 돌 때 품목상세(REQ_CODE 6)가 속도제한으로 거의 다 비어서(11/24: 품목없음 99%)
+    // 멀쩡한 시간대별 데이터를 1%짜리로 덮어쓸 뻔했다. 그래서
+    //   1) 그 날짜 전체의 품목없음 비율이 HOUR_BACKFILL_MAX_NOITEM_PCT(기본 30%)를 넘으면 그 날짜는 저장 안 함
+    //   2) 매장별로도 새 합계가 기존 합계의 90% 미만이면 기존 값 유지
+    const noItemPct = result.rawOrders > 0 ? (result.skippedNoItems / result.rawOrders) * 100 : 0;
+    const MAX_NOITEM_PCT = Number(process.env.HOUR_BACKFILL_MAX_NOITEM_PCT || 30);
+    if (noItemPct > MAX_NOITEM_PCT) {
+      console.log(`  ⚠️ ${date} 품목없음 ${noItemPct.toFixed(0)}% — 응답이 부실해서 이 날짜는 저장하지 않고 기존 값을 유지합니다.`);
+      skippedBadDates.push(date);
+    } else
     // 이번 날짜 결과를 월별 파일에 반영 (fetch 자체가 실패한 매장은 건드리지 않고 기존 값 유지)
     for (const [code, { name, hourRows }] of Object.entries(result.perStore)) {
       const compactRows = hourRows
         .filter((r) => r.SDA_DT === date)
         .map((r) => [day, r.hour, productIndex_(products, productIndexMap, r.CMDT_NM), r.qty, r.amount]);
       const prev = monthData.STORES[code] || { name, rows: [] };
+      const oldDayRows = (prev.rows || []).filter((r) => r[0] === day);
+      const oldSum = oldDayRows.reduce((a, r) => a + (Number(r[4]) || 0), 0);
+      const newSum = compactRows.reduce((a, r) => a + (Number(r[4]) || 0), 0);
+      if (oldSum > 0 && newSum < oldSum * 0.9) continue; // 기존이 더 온전하면 유지
       const prevRows = (prev.rows || []).filter((r) => r[0] !== day);
       monthData.STORES[code] = { name, rows: [...prevRows, ...compactRows] };
     }
@@ -364,6 +380,11 @@ async function main() {
   }
   if (totalFailed.length) {
     console.log('\n실패 내역(최대 30개):\n' + totalFailed.slice(0, 30).join('\n'));
+  }
+  if (skippedBadDates.length) {
+    console.log(`\n⚠️ 품목 응답이 부실해서 저장 안 한 날짜 ${skippedBadDates.length}개: ${skippedBadDates.join(', ')}`);
+    // catchup.js가 "다음에 다시 시도"할 수 있게 종료코드로 알려준다
+    if (process.env.HOUR_BACKFILL_FAIL_ON_BAD === '1') process.exitCode = 3;
   }
 }
 

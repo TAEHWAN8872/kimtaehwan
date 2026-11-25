@@ -135,8 +135,10 @@ async function main() {
       } else {
         const rows = aggregateOrderDetailToProducts(dt.rows).map((x) => [x.SDA_DT, x.CMDT_NM, x.SDC_QTY, x.SDC_AMT_TTL]);
         const prevP = prod.STORES[code] || { name, rows: [] };
-        const had = (prevP.rows || []).some((x) => x[0] === date);
-        if (rows.length || !had) { // 안전장치: 기존 값이 있는데 빈 응답이면 유지
+        const oldSum = (prevP.rows || []).filter((x) => x[0] === date).reduce((a, x) => a + (Number(x[3]) || 0), 0);
+        const newSum = rows.reduce((a, x) => a + (Number(x[3]) || 0), 0);
+        // 안전장치: 기존 값이 있는데 새 응답이 비었거나 기존의 90% 미만이면(속도제한으로 일부만 온 경우) 유지
+        if (!(oldSum > 0 && newSum < oldSum * 0.9)) {
           const kept = (prevP.rows || []).filter((x) => x[0] !== date);
           prod.STORES[code] = { ...prevP, name: prevP.name || name, rows: [...kept, ...rows] };
         }
@@ -154,20 +156,29 @@ async function main() {
   if (failLog.length) console.log('실패 내역(최대 20개):\n' + failLog.slice(0, 20).join('\n'));
 
   // 4) 시간대별 — 기존 hour-backfill.js를 같은 구간으로 실행 (자동 재실행 체인은 끔)
-  const env = { ...process.env, HOUR_BACKFILL_START: start, HOUR_BACKFILL_END: end, HOUR_BACKFILL_STORE_CODES: '' };
+  // 바로 이어서 호출하면 tpay 속도제한으로 품목상세가 거의 빈 채로 와서(11/24 품목없음 99%) 잠깐 쉬고 시작
+  const COOLDOWN = Number(process.env.CATCHUP_HOUR_COOLDOWN_MS || 60000);
+  console.log(`시간대별 채우기 전 ${COOLDOWN / 1000}초 쉬어갑니다 (속도제한 완화)...`);
+  await sleep(COOLDOWN);
+  const env = { ...process.env, HOUR_BACKFILL_START: start, HOUR_BACKFILL_END: end, HOUR_BACKFILL_STORE_CODES: '', HOUR_BACKFILL_FAIL_ON_BAD: '1' };
   delete env.GITHUB_OUTPUT;
   const h = spawnSync(process.execPath, [path.join(__dirname, 'hour-backfill.js')], { env, stdio: 'inherit' });
   const hourOk = h.status === 0;
 
   // 완료 기록: 실패가 적고 시간대별도 정상 종료됐을 때만
   const failRate = calls ? fails / calls : 1;
-  if (failRate <= FAIL_RATE_LIMIT && hourOk && !(process.env.CATCHUP_START && process.env.CATCHUP_END)) {
+  // 같은 구간을 하루에 계속 재시도하면 매 실행이 5~9분씩 걸리므로 최대 3번까지만 시도하고 완료 처리
+  const attempts = (state.pendingEnd === end ? (state.attempts || 0) : 0) + 1;
+  const giveUp = attempts >= 3;
+  if ((failRate <= FAIL_RATE_LIMIT && hourOk || giveUp) && !(process.env.CATCHUP_START && process.env.CATCHUP_END)) {
+    if (giveUp && !(failRate <= FAIL_RATE_LIMIT && hourOk)) console.log(`⚠️ ${attempts}번 시도해도 일부 부실 — 더 재시도하지 않고 완료 처리합니다 (기존 값은 그대로 유지됨)`);
     writeJsonAtomic(STATE_PATH, { lastDone: end, lastRange: `${start}~${end}`, updatedAt: new Date().toISOString() });
     console.log(`✅ 지난 날짜 채우기 완료: ${start} ~ ${end} (다음 채우기는 내일 첫 실행 때)`);
   } else if (process.env.CATCHUP_START && process.env.CATCHUP_END) {
     console.log(`수동 구간 채우기 끝 (${start} ~ ${end}, 실패율 ${(failRate * 100).toFixed(1)}%) — 기록은 바꾸지 않음`);
   } else {
-    console.log(`⚠️ 실패율 ${(failRate * 100).toFixed(1)}%${hourOk ? '' : ' / 시간대별 오류'} — 완료 표시 안 함, 다음 회차에 다시 시도합니다.`);
+    writeJsonAtomic(STATE_PATH, { ...state, pendingEnd: end, attempts, updatedAt: new Date().toISOString() });
+    console.log(`⚠️ 실패율 ${(failRate * 100).toFixed(1)}%${hourOk ? '' : ' / 시간대별 부실·오류'} — 완료 표시 안 함, 다음 회차에 다시 시도합니다 (${attempts}/3).`);
   }
 }
 
