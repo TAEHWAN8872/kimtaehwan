@@ -160,11 +160,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: 지난 날짜 자동 채우기 (하루 1번, PC가 꺼져 있던 동안 빠진 날짜 재조회 — 이미 했으면 바로 건너뜀)
-        if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
-        env:
-          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
-        run: node scripts/catchup.js
       - name: 일일 갱신 실행 (스케줄 or 수동-daily)
         if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
         env:
@@ -184,6 +179,11 @@ jobs:
         env:
           MENU_MONTHS: ${{ github.event.inputs.menu_months }}
         run: node scripts/menu-update.js
+      - name: 지난 날짜 자동 채우기 (하루 1번, 오늘자 갱신이 끝난 뒤 실행 — 먼저 돌면 호출이 몰려 오늘자가 0건으로 받아짐, PC가 꺼져 있던 동안 빠진 날짜 재조회 — 이미 했으면 바로 건너뜀)
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'daily'
+        env:
+          TPAY_TOKEN: ${{ secrets.TPAY_TOKEN }}
+        run: node scripts/catchup.js
       - name: 상품분류 매핑 갱신 (매일 1회 스케줄 or 수동-product-category)
         if: github.event.schedule == '0 18 * * *' || github.event.inputs.mode == 'product-category'
         env:
