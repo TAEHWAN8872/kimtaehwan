@@ -151,6 +151,12 @@ jobs:
           else
             echo "작업폴더에 .git 없음 — 정리할 것 없음"
           fi
+      - name: 이 PC의 공인 IP 확인 (T-PAY는 해외·클라우드 IP를 막으므로 진단용)
+        continue-on-error: true
+        run: |
+          IP=$(curl -s --max-time 10 https://api.ipify.org || echo "확인 실패")
+          echo "이 실행기의 공인 IP: $IP"
+          curl -s --max-time 10 "https://ipinfo.io/$IP/json" | grep -E '"(city|region|country|org)"' || true
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
         with:
