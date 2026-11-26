@@ -1,57 +1,57 @@
 {
  "안내": "메뉴 목록(menu-products.json)에 없는데 판매량이 많은 상품입니다. 메뉴면 products에 추가, 아니면 ignoreExact/ignorePatterns에 추가하세요.",
- "updatedAt": "2026-11-26T00:16:59.674Z",
+ "updatedAt": "2026-11-26T01:17:11.716Z",
  "months": {
   "202610": [],
   "202611": [
    {
     "name": "앙버터 호두과자",
-    "qty": 627,
+    "qty": 632,
     "stores": 39
    },
    {
     "name": "팥&앙버터 호두과자",
-    "qty": 593,
+    "qty": 609,
     "stores": 35
    },
    {
     "name": "팥 호두과자",
-    "qty": 414,
+    "qty": 416,
     "stores": 37
    },
    {
     "name": "앙버터호두과자",
-    "qty": 306,
+    "qty": 308,
     "stores": 19
    },
    {
     "name": "앙버터호두과자20개입",
-    "qty": 247,
+    "qty": 253,
     "stores": 13
    },
    {
     "name": "앙버터호두과자20알",
-    "qty": 234,
+    "qty": 237,
     "stores": 6
    },
    {
     "name": "간식용 호두과자",
-    "qty": 191,
+    "qty": 192,
     "stores": 24
    },
    {
     "name": "팥&앙버터호두과자",
-    "qty": 187,
+    "qty": 191,
     "stores": 13
    },
    {
     "name": "팥호두과자",
-    "qty": 183,
+    "qty": 185,
     "stores": 14
    },
    {
     "name": "팥호두과자20개입",
-    "qty": 170,
+    "qty": 171,
     "stores": 12
    },
    {
@@ -75,14 +75,14 @@
     "stores": 4
    },
    {
+    "name": "행복식혜",
+    "qty": 115,
+    "stores": 15
+   },
+   {
     "name": "팥호두과자(20개입)",
     "qty": 115,
     "stores": 9
-   },
-   {
-    "name": "행복식혜",
-    "qty": 113,
-    "stores": 15
    },
    {
     "name": "앙버터&레몬버터 호두과자",
